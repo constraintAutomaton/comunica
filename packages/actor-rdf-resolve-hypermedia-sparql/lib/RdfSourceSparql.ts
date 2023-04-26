@@ -2,7 +2,7 @@ import { BindingsFactory } from '@comunica/bindings-factory';
 import type { MediatorHttp } from '@comunica/bus-http';
 import type { IQuadSource } from '@comunica/bus-rdf-resolve-quad-pattern';
 import type { Bindings, BindingsStream, IActionContext } from '@comunica/types';
-import type * as RDF from '@rdfjs/types';
+import * as RDF from '@rdfjs/types';
 import type { AsyncIterator } from 'asynciterator';
 import { wrap } from 'asynciterator';
 import { SparqlEndpointFetcher } from 'fetch-sparql-endpoint';
@@ -24,7 +24,7 @@ export class RdfSourceSparql implements IQuadSource {
   private readonly mediatorHttp: MediatorHttp;
 
   private readonly endpointFetcher: SparqlEndpointFetcher;
-  private readonly cache: LRU<string, RDF.QueryResultCardinality> | undefined;
+  private readonly cache: LRU<string, [RDF.QueryResultCardinality, RDF.Quad]> | undefined;
 
   public constructor(url: string, context: IActionContext, mediatorHttp: MediatorHttp, forceHttpGet: boolean,
     cacheSize: number) {
@@ -39,7 +39,7 @@ export class RdfSourceSparql implements IQuadSource {
       prefixVariableQuestionMark: true,
     });
     this.cache = cacheSize > 0 ?
-      new LRU<string, RDF.QueryResultCardinality>({ max: cacheSize }) :
+      new LRU<string, [RDF.QueryResultCardinality, RDF.Quad]>({ max: cacheSize }) :
       undefined;
   }
 
@@ -88,8 +88,8 @@ export class RdfSourceSparql implements IQuadSource {
    * @return {Bgp} A BGP.
    */
   public static patternToBgp(pattern: RDF.BaseQuad): Algebra.Bgp {
-    return RdfSourceSparql.FACTORY.createBgp([ RdfSourceSparql.FACTORY
-      .createPattern(pattern.subject, pattern.predicate, pattern.object, pattern.graph) ]);
+    return RdfSourceSparql.FACTORY.createBgp([RdfSourceSparql.FACTORY
+      .createPattern(pattern.subject, pattern.predicate, pattern.object, pattern.graph)]);
   }
 
   /**
@@ -116,18 +116,61 @@ export class RdfSourceSparql implements IQuadSource {
         RdfSourceSparql.FACTORY.createGroup(
           RdfSourceSparql.patternToBgp(pattern),
           [],
-          [ RdfSourceSparql.FACTORY.createBoundAggregate(
+          [RdfSourceSparql.FACTORY.createBoundAggregate(
             DF.variable('var0'),
             'count',
             RdfSourceSparql.FACTORY.createWildcardExpression(),
             false,
-          ) ],
+          )],
         ),
         DF.variable('count'),
         RdfSourceSparql.FACTORY.createTermExpression(DF.variable('var0')),
       ),
-      [ DF.variable('count') ],
+      [DF.variable('count')],
     ));
+  }
+  private cardinalityInference(currentQuad: RDF.Quad): RDF.QueryResultCardinality | undefined {
+    if (this.cache) {
+      console.log(`cache has size ${this.cache.size}`)
+      for (const [query, [cardinality, quad]] of this.cache.entries()) {
+        // we check if the current quad is more precise
+        if (RdfSourceSparql.isSubPatternOf(currentQuad, quad)) {
+          console.log(`There is a subpartern`);
+
+          return {
+            type: 'estimate',
+            value: cardinality.value - 1
+          }
+        }
+       
+      }
+    }
+    console.log(`There is a NOT a subpartern`);
+    return undefined;
+  }
+
+  /**
+     * Checks if the given (child) pattern is a more bound version of the given (parent) pattern.
+     * This will also return true if the patterns are equal.
+     * @param {RDF.BaseQuad} child A child pattern.
+     * @param {RDF.BaseQuad} parent A parent pattern.
+     * @return {boolean} If child is a sub-pattern of parent
+     */
+  public static isSubPatternOf(child: RDF.BaseQuad, parent: RDF.BaseQuad): boolean {
+    return (!RdfSourceSparql.isTermBound(parent.subject) || parent.subject.equals(child.subject)) &&
+      (!RdfSourceSparql.isTermBound(parent.predicate) || parent.predicate.equals(child.predicate)) &&
+      (!RdfSourceSparql.isTermBound(parent.object) || parent.object.equals(child.object)) &&
+      (!RdfSourceSparql.isTermBound(parent.graph) || parent.graph.equals(child.graph));
+  }
+
+  /**
+   * Check if the given RDF term is not bound to an exact value.
+   * I.e., if it is not a Variable.
+   * @param {RDF.Term} term An RDF term.
+   * @return {boolean} If it is not bound.
+   */
+  public static isTermBound(term: RDF.Term): boolean {
+    return term.termType !== 'Variable';
   }
 
   /**
@@ -140,7 +183,7 @@ export class RdfSourceSparql implements IQuadSource {
     const rawStream = this.endpointFetcher.fetchBindings(endpoint, query);
     return wrap<any>(rawStream, { autoStart: false, maxBufferSize: Number.POSITIVE_INFINITY })
       .map((rawData: Record<string, RDF.Term>) => BF.bindings(Object.entries(rawData)
-        .map(([ key, value ]) => [ DF.variable(key.slice(1)), value ])));
+        .map(([key, value]) => [DF.variable(key.slice(1)), value])));
   }
 
   public match(subject: RDF.Term, predicate: RDF.Term, object: RDF.Term, graph: RDF.Term): AsyncIterator<RDF.Quad> {
@@ -152,13 +195,20 @@ export class RdfSourceSparql implements IQuadSource {
     ));
     const countQuery: string = RdfSourceSparql.patternToCountQuery(pattern);
     const selectQuery: string = RdfSourceSparql.patternToSelectQuery(pattern);
+    const inference = this.cardinalityInference(DF.quad(
+      <RDF.NamedNode>subject,
+      <RDF.NamedNode>predicate,
+      <RDF.NamedNode>object,
+    ));
 
     // Emit metadata containing the estimated count (reject is never called)
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     new Promise<RDF.QueryResultCardinality>(resolve => {
       const cachedCardinality = this.cache?.get(countQuery);
       if (cachedCardinality !== undefined) {
-        return resolve(cachedCardinality);
+        return resolve(cachedCardinality[0]);
+      } else if (inference) {
+        return resolve(inference);
       }
 
       const bindingsStream: BindingsStream = this.queryBindings(this.url, countQuery);
@@ -170,7 +220,11 @@ export class RdfSourceSparql implements IQuadSource {
           if (!Number.isNaN(cardinalityValue)) {
             cardinality.type = 'exact';
             cardinality.value = cardinalityValue;
-            this.cache?.set(countQuery, cardinality);
+            this.cache?.set(countQuery, [cardinality, DF.quad(
+              <RDF.NamedNode>subject,
+              <RDF.NamedNode>predicate,
+              <RDF.NamedNode>object,
+            )]);
           }
         }
         return resolve(cardinality);
@@ -182,7 +236,7 @@ export class RdfSourceSparql implements IQuadSource {
 
     // Materialize the queried pattern using each found binding.
     const quads: AsyncIterator<RDF.Quad> & RDF.Stream = this.queryBindings(this.url, selectQuery)
-      .map((bindings: Bindings) => <RDF.Quad> mapTerms(pattern, (value: RDF.Term) => {
+      .map((bindings: Bindings) => <RDF.Quad>mapTerms(pattern, (value: RDF.Term) => {
         if (value.termType === 'Variable') {
           const boundValue = bindings.get(value);
           if (!boundValue) {
