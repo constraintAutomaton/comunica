@@ -15,6 +15,10 @@ import { Factory, toSparql } from 'sparqlalgebrajs';
 const DF = new DataFactory();
 const BF = new BindingsFactory();
 const VAR_COUNT = DF.variable('count');
+const HEURISTIC_REDUCTION_VALUE = -1;
+let nTotal = 0;
+let nCache = 0;
+let nInfered = 0;
 
 export class RdfSourceSparql implements IQuadSource {
   protected static readonly FACTORY: Factory = new Factory();
@@ -131,18 +135,20 @@ export class RdfSourceSparql implements IQuadSource {
   }
   private cardinalityInference(currentQuad: RDF.Quad): RDF.QueryResultCardinality | undefined {
     if (this.cache) {
-      console.log(`cache has size ${this.cache.size}`)
+      //console.log(`cache has size ${this.cache.size}`)
       for (const [query, [cardinality, quad]] of this.cache.entries()) {
         // we check if the current quad is more precise
         if (RdfSourceSparql.isSubPatternOf(currentQuad, quad)) {
           console.log(`There is a subpartern`);
+          //console.log(`Cache Quad ${quad.subject.value} - ${quad.predicate.value} - ${quad.object.value}\nCurrent Quad ${currentQuad.subject.value} - ${currentQuad.predicate.value} - ${currentQuad.object.value}
+          //`);
 
           return {
             type: 'estimate',
-            value: cardinality.value - 1
+            value: cardinality.value - HEURISTIC_REDUCTION_VALUE
           }
         }
-       
+
       }
     }
     console.log(`There is a NOT a subpartern`);
@@ -195,21 +201,34 @@ export class RdfSourceSparql implements IQuadSource {
     ));
     const countQuery: string = RdfSourceSparql.patternToCountQuery(pattern);
     const selectQuery: string = RdfSourceSparql.patternToSelectQuery(pattern);
-    const inference = this.cardinalityInference(DF.quad(
+    nTotal += 1;
+    const inference = undefined;
+    
+    /**this.cardinalityInference(DF.quad(
       <RDF.NamedNode>subject,
       <RDF.NamedNode>predicate,
       <RDF.NamedNode>object,
-    ));
+    ));*/
+    const printStat = () => {
+      console.log(`${nCache} cached query; ${nInfered} infered cardinality; ${nTotal} total number of cardinality request => ${((nInfered + nCache) / nTotal) * 100} ration cardinality without count.`);
+    };
 
     // Emit metadata containing the estimated count (reject is never called)
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     new Promise<RDF.QueryResultCardinality>(resolve => {
       const cachedCardinality = this.cache?.get(countQuery);
       if (cachedCardinality !== undefined) {
+        nCache += 1;
+        printStat();
         return resolve(cachedCardinality[0]);
       } else if (inference) {
+        nInfered += 1;
+        printStat();
         return resolve(inference);
       }
+      printStat();
+
+
 
       const bindingsStream: BindingsStream = this.queryBindings(this.url, countQuery);
       bindingsStream.on('data', (bindings: Bindings) => {
