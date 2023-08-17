@@ -26,7 +26,7 @@ export class ActorQueryOperationSlice extends ActorQueryOperationTypedMediated<A
   }
 
   public async runOperation(operation: Algebra.Slice, context: IActionContext):
-  Promise<IQueryOperationResult> {
+    Promise<IQueryOperationResult> {
     // Add limit indicator to the context, which can be used for query planning
     // eslint-disable-next-line unicorn/explicit-length-check
     if (operation.length) {
@@ -39,7 +39,7 @@ export class ActorQueryOperationSlice extends ActorQueryOperationTypedMediated<A
 
     if (output.type === 'bindings') {
       const bindingsStream = this.sliceStream(output.bindingsStream, operation);
-      return <IQueryOperationResultBindings> {
+      return <IQueryOperationResultBindings>{
         type: 'bindings',
         bindingsStream,
         metadata: this.sliceMetadata(output, operation),
@@ -48,7 +48,7 @@ export class ActorQueryOperationSlice extends ActorQueryOperationTypedMediated<A
 
     if (output.type === 'quads') {
       const quadStream = this.sliceStream(output.quadStream, operation);
-      return <IQueryOperationResultQuads> {
+      return <IQueryOperationResultQuads>{
         type: 'quads',
         quadStream,
         metadata: this.sliceMetadata(output, operation),
@@ -64,6 +64,7 @@ export class ActorQueryOperationSlice extends ActorQueryOperationTypedMediated<A
     const hasLength: boolean = Boolean(pattern.length) || pattern.length === 0;
     const { start } = pattern;
     const end = hasLength ? pattern.start + pattern.length! - 1 : Number.POSITIVE_INFINITY;
+
     return stream.transform({ offset: start, limit: Math.max(end - start + 1, 0), autoStart: false });
   }
 
