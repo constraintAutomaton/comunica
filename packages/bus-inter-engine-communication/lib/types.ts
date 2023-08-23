@@ -1,16 +1,24 @@
+import { DataSources } from "@comunica/types"
+
 /**
- * A type of message
+ * A kind of message
  */
-export enum MessageType {
+export enum MessageKind {
     String,
+    Query
 }
 
 /**
  * A Message
  */
 export interface IMessage {
-    types: MessageType,
-    payload: any,
+    kind: MessageKind,
+}
+
+export interface IQueryMessage extends IMessage{
+    query: string,
+    datasources: DataSources,
+    context: any
 }
 
 /**
@@ -23,7 +31,7 @@ export interface IChannel {
 /**
  * A type of channel
  */
-export enum ChannelType {
+export enum ChannelKind {
     /**
      * A single peer engine
      */

@@ -10,3 +10,4 @@ export * from './cli/CliArgsHandlerHttp';
 export * from './cli/CliArgsHandlerQuery';
 export * from './MemoryPhysicalQueryPlanLogger';
 export * from './QueryEngineFactoryBase';
+export * from './CooperativeEndpoint';

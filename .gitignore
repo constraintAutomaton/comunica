@@ -16,6 +16,7 @@ yarn-error.log
 **/bin/**/*.js.map
 **/bin/**/*.d.ts
 **/index.js
+**/index.mjs
 **/index.js.map
 **/index.d.ts
 coverage
