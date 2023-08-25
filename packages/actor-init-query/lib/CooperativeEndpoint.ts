@@ -1,9 +1,10 @@
 import { IMessage, IQueryMessage, MessageKind } from "@comunica/bus-inter-engine-communication";
 import { request, createServer } from 'http';
-import { QueryEngineFactory } from '..';
+import { QueryEngine, QueryEngineFactory } from '@comunica/query-sparql';
+import { DataSources, IDataSource } from "@comunica/types";
 
 export class CommunicationEndpoint {
-    private sparqlEngine: Promise<QueryEngineFactory>|undefined = undefined;
+    private sparqlEngine: Promise<QueryEngine> | undefined = undefined;
 
     public readonly context: any;
     public readonly timeout: number;
@@ -30,6 +31,11 @@ export class CommunicationEndpoint {
                         console.warn(`${JSON.stringify(message)} is not a supported message`);
                     }
                     this.sparqlEngine = new QueryEngineFactory().create({});
+                    
+                    console.log(message.query);
+                    console.log(message.datasources);
+                    this.run(message.query, message.datasources);
+
                 } catch (error) {
                     console.error(error);
                 }
@@ -42,6 +48,21 @@ export class CommunicationEndpoint {
         });
         console.log(`we are listenning to port ${communicationServerAddress}`)
         server.listen(communicationServerAddress)
+    }
+
+    public async run(query: string, datasources: any) {
+        if (this.sparqlEngine) {
+            const engine = await this.sparqlEngine;
+            const bindingsStream = await engine.queryBindings(query, {sources: datasources});
+
+            bindingsStream.on('data', (binding) => {
+                console.log(binding.toString());
+            });
+
+            bindingsStream.on('end', (p) => {
+                console.log(`end ${p}`);
+            });
+        }
     }
 }
 
