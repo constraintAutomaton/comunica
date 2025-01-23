@@ -85,7 +85,9 @@
     "ExpressionEvaluator",
     "AggregateEvaluator",
     "ExpressionFunctionBase",
-    "TermFunctionBase"
+    "TermFunctionBase",
+
+    "QuerySourceHypermedia"
   ],
   "modulePrefix": {
     "@comunica/actor-query-operation-service": "caqoser",

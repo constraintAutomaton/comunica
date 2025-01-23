@@ -6,7 +6,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { IRuleGraph, KeysInitQuery, KeysQuerySourceIdentify, parseRules, ScopedRules } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -21,7 +21,7 @@ import type {
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 import type { AsyncIterator } from 'asynciterator';
-import { TransformIterator } from 'asynciterator';
+import { ArrayIterator, TransformIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
 import type { Algebra } from 'sparqlalgebrajs';
@@ -29,6 +29,9 @@ import { Factory } from 'sparqlalgebrajs';
 import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
+import * as n3 from "n3";
+
+const UriTemplate = require('uri-template-lite');
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -39,6 +42,8 @@ export class QuerySourceHypermedia implements IQuerySource {
   public readonly logWarning: (warningMessage: string) => void;
   public readonly dataFactory: ComunicaDataFactory;
   public readonly bindingsFactory: BindingsFactory;
+  public readonly unManagedQuad = new n3.Store();
+  public readonly rules: ScopedRules;
 
   /**
    * A cache for source URLs to source states.
@@ -58,6 +63,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     logWarning: (warningMessage: string) => void,
     dataFactory: ComunicaDataFactory,
     bindingsFactory: BindingsFactory,
+    rules: ScopedRules,
   ) {
     this.referenceValue = firstUrl;
     this.cacheSize = cacheSize;
@@ -70,6 +76,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     this.dataFactory = dataFactory;
     this.bindingsFactory = bindingsFactory;
     this.sourcesState = new LRUCache<string, Promise<ISourceState>>({ max: this.cacheSize });
+    this.rules = rules;
   }
 
   public async getSelectorShape(context: IActionContext): Promise<FragmentSelectorShape> {
@@ -130,7 +137,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   }
 
   public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
-    return new TransformIterator(async() => {
+    return new TransformIterator(async () => {
       const source = await this.getSourceCached({ url: this.firstUrl }, {}, context, this.getAggregateStore(context));
       return source.source.queryQuads(operation, context);
     });
@@ -211,21 +218,37 @@ export class QuerySourceHypermedia implements IQuerySource {
 
       // Log as warning, because the quads above may not always be consumed (e.g. for SPARQL endpoints),
       // so the user would not be notified of something going wrong otherwise.
-      this.logWarning(`Metadata extraction for ${url} failed: ${(<Error> error).message}`);
+      this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
     }
+    const wrappedQuads = wrapAsyncIterator(quads, { autoStart: false });
+
+    const quadsForAggregatedStore = wrappedQuads.clone();
+    const quadsForSource = wrappedQuads.clone();
+    const quadsForImplicitDataGeneration = wrappedQuads.clone();
+
+    //this.unManagedQuad.import(quadsForImplicitDataGeneration);
 
     // Aggregate all discovered quads into a store.
-    aggregatedStore?.setBaseMetadata(<MetadataBindings> metadata, false);
+    aggregatedStore?.setBaseMetadata(<MetadataBindings>metadata, false);
     aggregatedStore?.containedSources.add(link.url);
-    aggregatedStore?.import(quads);
+    aggregatedStore?.import(quadsForAggregatedStore);
 
+    const ruleGraph = this.selectCorrespondingRuleSet(this.rules, link.url);
+    const implicitQuads = this.updateImplicitStore2(ruleGraph, quadsForImplicitDataGeneration)//.on("data", (data: any) => { console.log(data) });
+
+    const implicitQuadToAggregatedStore = implicitQuads.clone();
+    const implicitQuadToSource = implicitQuads.clone();
+
+    aggregatedStore?.import(implicitQuadToAggregatedStore);
+
+    const quadsToStore: RDF.Stream = new UnionIterator([quadsForSource, implicitQuadToSource], { autoStart: false });
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
       context,
       forceSourceType: link.url === this.firstUrl ? this.forceSourceType : undefined,
       handledDatasets,
       metadata,
-      quads,
+      quads: quadsToStore,
       url,
     });
 
@@ -236,7 +259,7 @@ export class QuerySourceHypermedia implements IQuerySource {
       handledDatasets[dataset] = true;
     }
 
-    return { link, source, metadata: <MetadataBindings> metadata, handledDatasets };
+    return { link, source, metadata: <MetadataBindings>metadata, handledDatasets };
   }
 
   /**
@@ -274,7 +297,7 @@ export class QuerySourceHypermedia implements IQuerySource {
         if (!aggregatedStore) {
           aggregatedStore = new StreamingStoreMetadata(
             undefined,
-            async(accumulatedMetadata, appendingMetadata) => <MetadataBindings>
+            async (accumulatedMetadata, appendingMetadata) => <MetadataBindings>
               (await this.mediators.mediatorMetadataAccumulate.mediate({
                 mode: 'append',
                 accumulatedMetadata,
@@ -287,6 +310,93 @@ export class QuerySourceHypermedia implements IQuerySource {
         return aggregatedStore;
       }
     }
+  }
+
+  public updateImplicitStore(ruleGraph: IRuleGraph): AsyncIterator<RDF.Quad> {
+    return new TransformIterator(async () => {
+      const quadStream = wrapAsyncIterator<RDF.Quad>(this.unManagedQuad.match(null, null, null, null), { autoStart: false });//await this.queryEngine.queryQuads(this.getAllQuadsOperation, this.engineContext);
+      const innerStoreQuads = await quadStream.toArray();
+      let returningQuads: RDF.Quad[] = []
+      let currentStore = innerStoreQuads;
+      do {
+        const implicitQuads: RDF.Quad[] = [];
+        for (const rule of ruleGraph.rules) {
+          for (const quad of currentStore) {
+            const implicitQuad = rule.forwardChaining(quad);
+            if (implicitQuad !== undefined) {
+              implicitQuads.push(implicitQuad);
+            }
+          }
+        }
+        currentStore = implicitQuads;
+        returningQuads = returningQuads.concat(implicitQuads);
+      } while (currentStore.length > 0);
+      return new ArrayIterator(returningQuads, { autoStart: false })
+    });
+  }
+
+  public updateImplicitStore2(ruleGraph: IRuleGraph, quadStream: AsyncIterator<RDF.Quad>): AsyncIterator<RDF.Quad> {
+    const implicitQuadsStream: AsyncIterator<RDF.Quad> = quadStream.transform({
+      autoStart: false,
+      transform: (quad: RDF.Quad, done, push) => {
+        const implicitQuads = this.reasoningLoop(ruleGraph, quad);
+        for (const implicitQuad of implicitQuads) {
+          push(implicitQuad);
+        }
+        done();
+      },
+    });
+    return implicitQuadsStream;
+  }
+
+  private reasoningLoop(ruleGraph: IRuleGraph, quad: RDF.Quad): RDF.Quad[] {
+    const implicitQuads: RDF.Quad[] = [];
+    let noNewQuad = false;
+    let currentQuad = quad;
+    do {
+      noNewQuad = true;
+      for (const rule of ruleGraph.rules) {
+        const implicitQuad = rule.forwardChaining(currentQuad);
+        if (implicitQuad !== undefined) {
+          implicitQuads.push(implicitQuad);
+          currentQuad = implicitQuad;
+          noNewQuad = false;
+        } else {
+          noNewQuad = noNewQuad && true;
+        }
+      }
+    } while (noNewQuad === false)
+
+    return implicitQuads;
+  }
+
+  private selectCorrespondingRuleSet(rules: ScopedRules, iriSource: string): IRuleGraph {
+    const ruleForAll: IRuleGraph = rules.get('*') === undefined ?
+      { rules: [] } :
+      parseRules(rules.get('*')!);
+
+    if (typeof iriSource === 'string') {
+      const correspondingRules: IRuleGraph = ruleForAll;
+
+      for (const [domain, ruleSet] of rules) {
+        if (typeof domain === 'string') {
+          const template = new UriTemplate(domain);
+          if (template.match(iriSource) !== null) {
+            const ruleGraph = parseRules(ruleSet);
+            correspondingRules.rules = [...correspondingRules.rules, ...ruleGraph.rules];
+          }
+        }
+      }
+    } else {
+      const rawRules = rules.get(iriSource);
+      if (rawRules !== undefined) {
+        const localStoreRule: IRuleGraph = {
+          rules: ruleForAll.rules = [...ruleForAll.rules, ...parseRules(rawRules).rules],
+        };
+        return localStoreRule;
+      }
+    }
+    return ruleForAll;
   }
 
   public toString(): string {

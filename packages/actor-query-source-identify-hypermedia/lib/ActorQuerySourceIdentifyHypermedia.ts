@@ -12,7 +12,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify, ScopedRules } from '@comunica/context-entries';
 import { ActionContext, failTest, passTestVoid } from '@comunica/core';
 import type { IActorTest, TestResult } from '@comunica/core';
 import type { ComunicaDataFactory } from '@comunica/types';
@@ -48,6 +48,11 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
 
   public async run(action: IActionQuerySourceIdentify): Promise<IActorQuerySourceIdentifyOutput> {
     const dataFactory: ComunicaDataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
+    let rules: ScopedRules | undefined = action.context.get(KeyReasoning.rules);
+      if (rules === undefined) {
+        action.context = action.context.set(KeyReasoning.rules, new Map());
+        rules = action.context.getSafe(KeyReasoning.rules);
+      }
     return {
       querySource: {
         source: new QuerySourceHypermedia(
@@ -69,6 +74,7 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
           warningMessage => this.logWarn(action.context, warningMessage),
           dataFactory,
           await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+          rules
         ),
         context: action.querySourceUnidentified.context ?? new ActionContext(),
       },
