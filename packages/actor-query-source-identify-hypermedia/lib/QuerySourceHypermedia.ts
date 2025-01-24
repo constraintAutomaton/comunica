@@ -21,7 +21,7 @@ import type {
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 import type { AsyncIterator } from 'asynciterator';
-import { ArrayIterator, TransformIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
+import { TransformIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
 import type { Algebra } from 'sparqlalgebrajs';
@@ -226,15 +226,13 @@ export class QuerySourceHypermedia implements IQuerySource {
     const quadsForSource = wrappedQuads.clone();
     const quadsForImplicitDataGeneration = wrappedQuads.clone();
 
-    //this.unManagedQuad.import(quadsForImplicitDataGeneration);
-
     // Aggregate all discovered quads into a store.
     aggregatedStore?.setBaseMetadata(<MetadataBindings>metadata, false);
     aggregatedStore?.containedSources.add(link.url);
     aggregatedStore?.import(quadsForAggregatedStore);
 
     const ruleGraph = this.selectCorrespondingRuleSet(this.rules, link.url);
-    const implicitQuads = this.updateImplicitStore2(ruleGraph, quadsForImplicitDataGeneration)//.on("data", (data: any) => { console.log(data) });
+    const implicitQuads = this.generateImplicitQuads(ruleGraph, quadsForImplicitDataGeneration)//.on("data", (data: any) => { console.log(data) });
 
     const implicitQuadToAggregatedStore = implicitQuads.clone();
     const implicitQuadToSource = implicitQuads.clone();
@@ -312,30 +310,8 @@ export class QuerySourceHypermedia implements IQuerySource {
     }
   }
 
-  public updateImplicitStore(ruleGraph: IRuleGraph): AsyncIterator<RDF.Quad> {
-    return new TransformIterator(async () => {
-      const quadStream = wrapAsyncIterator<RDF.Quad>(this.unManagedQuad.match(null, null, null, null), { autoStart: false });//await this.queryEngine.queryQuads(this.getAllQuadsOperation, this.engineContext);
-      const innerStoreQuads = await quadStream.toArray();
-      let returningQuads: RDF.Quad[] = []
-      let currentStore = innerStoreQuads;
-      do {
-        const implicitQuads: RDF.Quad[] = [];
-        for (const rule of ruleGraph.rules) {
-          for (const quad of currentStore) {
-            const implicitQuad = rule.forwardChaining(quad);
-            if (implicitQuad !== undefined) {
-              implicitQuads.push(implicitQuad);
-            }
-          }
-        }
-        currentStore = implicitQuads;
-        returningQuads = returningQuads.concat(implicitQuads);
-      } while (currentStore.length > 0);
-      return new ArrayIterator(returningQuads, { autoStart: false })
-    });
-  }
 
-  public updateImplicitStore2(ruleGraph: IRuleGraph, quadStream: AsyncIterator<RDF.Quad>): AsyncIterator<RDF.Quad> {
+  public generateImplicitQuads(ruleGraph: IRuleGraph, quadStream: AsyncIterator<RDF.Quad>): AsyncIterator<RDF.Quad> {
     const implicitQuadsStream: AsyncIterator<RDF.Quad> = quadStream.transform({
       autoStart: false,
       transform: (quad: RDF.Quad, done, push) => {
