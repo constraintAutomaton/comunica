@@ -6,7 +6,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { IRuleGraph, KeysInitQuery, KeysQuerySourceIdentify, parseRules, ScopedRules } from '@comunica/context-entries';
+import { KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -30,6 +30,7 @@ import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
 import * as n3 from "n3";
+import { IRuleGraph, parseRules, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
 
 const UriTemplate = require('uri-template-lite');
 
@@ -232,14 +233,14 @@ export class QuerySourceHypermedia implements IQuerySource {
     aggregatedStore?.import(quadsForAggregatedStore);
 
     const ruleGraph = this.selectCorrespondingRuleSet(this.rules, link.url);
-    const implicitQuads = this.generateImplicitQuads(ruleGraph, quadsForImplicitDataGeneration)//.on("data", (data: any) => { console.log(data) });
+    //const implicitQuads = this.generateImplicitQuads(ruleGraph, quadsForImplicitDataGeneration)//.on("data", (data: any) => { console.log(data) });
 
-    const implicitQuadToAggregatedStore = implicitQuads.clone();
-    const implicitQuadToSource = implicitQuads.clone();
+    //const implicitQuadToAggregatedStore = implicitQuads.clone();
+    //const implicitQuadToSource = implicitQuads.clone();
 
-    aggregatedStore?.import(implicitQuadToAggregatedStore);
+    //aggregatedStore?.import(implicitQuadToAggregatedStore);
 
-    const quadsToStore: RDF.Stream = new UnionIterator([quadsForSource, implicitQuadToSource], { autoStart: false });
+    const quadsToStore: RDF.Stream = new UnionIterator([quadsForSource, /*implicitQuadToSource*/], { autoStart: false });
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
       context,

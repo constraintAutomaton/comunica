@@ -87,7 +87,8 @@
     "ExpressionFunctionBase",
     "TermFunctionBase",
 
-    "QuerySourceHypermedia"
+    "QuerySourceHypermedia",
+    "ScopedRules"
   ],
   "modulePrefix": {
     "@comunica/actor-query-operation-service": "caqoser",
