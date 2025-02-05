@@ -38,7 +38,8 @@
     {
       "@id": "urn:comunica:default:context-preprocess/actors#query-source-reasoning",
       "@type": "ActorContextPreprocessQuerySourceReasoning",
-      "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" }
+      "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" },
+      "mediatorRdfMetadataAccumulate": { "@id": "urn:comunica:default:rdf-metadata-accumulate/mediators#main" }
     }
   ]
 }

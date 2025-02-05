@@ -12,6 +12,7 @@ import type { ScopedRules } from './Rules';
 import { passTestVoid } from '@comunica/core';
 import { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
+import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 
 
 /**
@@ -20,6 +21,8 @@ import { BindingsFactory } from '@comunica/utils-bindings-factory';
 export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPreprocess {
 
   public readonly mediatorMergeBindingsContext: MediatorMergeBindingsContext;
+
+  public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
 
   public readonly queryEngine: QueryEngineBase;
 
@@ -61,6 +64,7 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
           getSourceId(sourceIds, sourceWrapper.source),
           rules,
           await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+          this.mediatorRdfMetadataAccumulate,
           action.context,
         );
 
@@ -82,4 +86,6 @@ export interface IActorContextPreprocessQuerySourceReasoning
     * A mediator for creating binding context merge handlers
   */
   mediatorMergeBindingsContext: MediatorMergeBindingsContext;
+
+  mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate
 }

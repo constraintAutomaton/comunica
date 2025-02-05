@@ -2,7 +2,7 @@ import type { EventEmitter } from 'node:events';
 import { QueryEngineBase } from '@comunica/actor-init-query';
 import { KeysInitQuery, KeysQuerySourceIdentify, KeysQueryOperation } from '@comunica/context-entries';
 import { KeysRdfJoin } from '@comunica/context-entries';
-import type { BindingsFactory } from '@comunica/utils-bindings-factory';
+import { bindingsToString, type BindingsFactory } from '@comunica/utils-bindings-factory';
 import type {
   Bindings,
   BindingsStream,
@@ -12,14 +12,18 @@ import type {
   IQuerySource,
 } from '@comunica/types';
 import type * as RDF from '@rdfjs/types';
-import { UnionIterator, type AsyncIterator, ArrayIterator, TransformIterator } from 'asynciterator';
+import { AsyncIterator, UnionIterator, wrap as wrapAsyncIterator } from 'asynciterator';
 import type { Algebra } from 'sparqlalgebrajs';
 import { Factory } from 'sparqlalgebrajs';
-import { parseRules,IRuleGraph, ScopedRules  } from './Rules';
+import { parseRules, IRuleGraph, ScopedRules } from './Rules';
 import { BindingsToQuadsIterator } from '@comunica/actor-query-operation-construct';
 import { StreamingStore } from 'rdf-streaming-store';
-import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
+import { IRdfJsSourceExtended, QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import { quadsToBindings } from '@comunica/bus-query-source-identify';
+import { someTerms } from 'rdf-terms';
+import { MetadataValidationState } from '@comunica/utils-metadata';
+import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
+import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union';
 
 const UriTemplate = require('uri-template-lite');
 
@@ -35,8 +39,6 @@ export class QuerySourceReasoning implements IQuerySource {
    */
   public readonly sourceId?: string;
 
-  private readonly engineContext: any;
-
   public readonly rules: IRuleGraph;
 
   protected readonly selectorShape: FragmentSelectorShape;
@@ -46,11 +48,14 @@ export class QuerySourceReasoning implements IQuerySource {
   private readonly implicitQuadQuerySource: IQuerySource;
   private readonly bindingsFactory: BindingsFactory;
 
+  public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
+
   public constructor(
     innerSource: IQuerySource,
     sourceId: string | undefined,
     rules: ScopedRules,
     bindingsFactory: BindingsFactory,
+    mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
     context: IActionContext
   ) {
 
@@ -58,27 +63,28 @@ export class QuerySourceReasoning implements IQuerySource {
     this.innerSource = innerSource;
     this.sourceId = sourceId;
     const dataFactory = context.getSafe(KeysInitQuery.dataFactory);
+    this.mediatorRdfMetadataAccumulate = mediatorRdfMetadataAccumulate;
     const getAllQuadsOperation = AF.createPattern(
       dataFactory.variable('s'),
       dataFactory.variable('p'),
       dataFactory.variable('o'),
-      dataFactory.variable('g'),
     );
     const ruleGraph = this.selectCorrespondingRuleSet(rules);
 
-    const quadStream = this.innerSource.queryBindings(getAllQuadsOperation, context).map(bindings => {
+    const queryAllBindings = this.innerSource.queryBindings(getAllQuadsOperation, context);
+
+    const quadStream = queryAllBindings.map(bindings => {
       return BindingsToQuadsIterator.bindQuad(bindings, dataFactory.quad(
         dataFactory.variable('s'),
         dataFactory.variable('p'),
-        dataFactory.variable('o'),
-        dataFactory.variable('g')))!
+        dataFactory.variable('o')))!
     });
-
 
     const implicitQuads = this.generateImplicitQuads(ruleGraph, quadStream);
     implicitQuads.on('end', () => {
       this.implicitQuadStore.end();
     });
+
     this.implicitQuadStore.import(implicitQuads);
 
 
@@ -188,41 +194,15 @@ export class QuerySourceReasoning implements IQuerySource {
 
     const bindingStreamOriginal = this.innerSource.queryBindings(operation, context, options);
     const implicitBindingStream = this.implicitQuadQuerySource.queryBindings(operation, context, options);
-    /**
-    const transformedBindingStreamOriginal: BindingsStream = bindingStreamOriginal.transform({
-      autoStart: false,
-      transform: (bindings: Bindings, done, push) => {
-        push(bindings);
-        implicitBindingStream.on("data", (data)=>{
-          push(data)
-        })
-        implicitBindingStream.on("end", ()=>{
-          done();
-        })
-      },
-    });
-    */
 
-    const cloneBindingStream = bindingStreamOriginal.clone();
-    const cloneBindingStreamReturn = bindingStreamOriginal.clone();
-    const cloneBindingStreamDebug = bindingStreamOriginal.clone();
+    const unions = new UnionIterator([bindingStreamOriginal, implicitBindingStream], { autoStart: false });
 
-    const cloneimplicitBindingStream= implicitBindingStream.clone();
-    const cloneimplicitBindingStreamReturn = implicitBindingStream.clone();
+    if (!unions.getProperty('metadata')) {
+      this.setMetadata(unions, bindingStreamOriginal, implicitBindingStream, context)
+        .catch(error => unions.destroy(error));
+    }
 
-    const unions: BindingsStream = new UnionIterator([/**cloneBindingStream,*/ cloneimplicitBindingStream], { autoStart: false });
-
-    return unions//transformedBindingStreamOriginal
-    /**
-    //cloneBindingStreamReturn
-    const quads = this.queryQuads(operation, context);
-    return quadsToBindings(
-      quads,
-      operation,
-      context.getSafe(KeysInitQuery.dataFactory),
-      this.bindingsFactory,
-      Boolean(context.get(KeysQueryOperation.unionDefaultGraph)),)
-      */
+    return unions;
   }
 
   public async queryBoolean(operation: Algebra.Ask, context: IActionContext): Promise<boolean> {
@@ -234,6 +214,7 @@ export class QuerySourceReasoning implements IQuerySource {
   public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
     const originalQuads = this.innerSource.queryQuads(operation, context);
     const implicitQuads = this.implicitQuadQuerySource.queryQuads(operation, context);
+    console.log(implicitQuads.getProperties());
     return new UnionIterator([originalQuads, implicitQuads], { autoStart: false });
   }
 
@@ -244,6 +225,21 @@ export class QuerySourceReasoning implements IQuerySource {
   public get referenceValue(): string | RDF.Source {
     return this.innerSource.referenceValue;
   }
+
+  protected async setMetadata(
+    it: BindingsStream,
+    originalBindingStream: BindingsStream,
+    implicitBindingStream: BindingsStream,
+    context: IActionContext,
+  ): Promise<void> {
+    originalBindingStream.getProperty("metadata", (originalMetadata: any) => {
+      implicitBindingStream.getProperty("metadata", async (implicitMetadata: any) => {
+        const metadata = await ActorQueryOperationUnion.unionMetadata([originalMetadata, implicitMetadata], true, context, this.mediatorRdfMetadataAccumulate)
+        it.setProperty('metadata', metadata);
+      });
+    });
+  }
+
 
   public toString(): string {
     return `QuerySourceReasoning(${this.innerSource.constructor.name})`;

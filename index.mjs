@@ -10,7 +10,7 @@ const myEngine = await new QueryEngineFactory().create();
 
 const query = `
 SELECT * WHERE {
-  ?s <http://www.w3.org/ns/pim/space#storage> ?storage
+  ?s <http://www.w3.org/ns/pim/space#storage3> ?storage
 }
 `;
 
