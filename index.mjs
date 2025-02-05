@@ -21,7 +21,6 @@ const loggerParams = {
   streamProviders: [streamProvider],
 };
 const logger = new LoggerBunyan(loggerParams);
-const snvocPrefix = "http://localhost:3000/www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/";
 const sameAs = DF.namedNode("http://www.w3.org/2002/07/owl#sameAs");
 
 const debugRule = [

@@ -1,10 +1,6 @@
-import type { EventEmitter } from 'node:events';
-import { QueryEngineBase } from '@comunica/actor-init-query';
-import { KeysInitQuery, KeysQuerySourceIdentify, KeysQueryOperation } from '@comunica/context-entries';
-import { KeysRdfJoin } from '@comunica/context-entries';
-import { bindingsToString, type BindingsFactory } from '@comunica/utils-bindings-factory';
+import { KeysInitQuery } from '@comunica/context-entries';
+import {  type BindingsFactory } from '@comunica/utils-bindings-factory';
 import type {
-  Bindings,
   BindingsStream,
   FragmentSelectorShape,
   IActionContext,
@@ -12,16 +8,13 @@ import type {
   IQuerySource,
 } from '@comunica/types';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator, UnionIterator, wrap as wrapAsyncIterator } from 'asynciterator';
+import { AsyncIterator, UnionIterator} from 'asynciterator';
 import type { Algebra } from 'sparqlalgebrajs';
 import { Factory } from 'sparqlalgebrajs';
 import { parseRules, IRuleGraph, ScopedRules } from './Rules';
 import { BindingsToQuadsIterator } from '@comunica/actor-query-operation-construct';
 import { StreamingStore } from 'rdf-streaming-store';
-import { IRdfJsSourceExtended, QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
-import { quadsToBindings } from '@comunica/bus-query-source-identify';
-import { someTerms } from 'rdf-terms';
-import { MetadataValidationState } from '@comunica/utils-metadata';
+import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union';
 
@@ -46,7 +39,6 @@ export class QuerySourceReasoning implements IQuerySource {
 
   private readonly implicitQuadStore = new StreamingStore();
   private readonly implicitQuadQuerySource: IQuerySource;
-  private readonly bindingsFactory: BindingsFactory;
 
   public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
 
@@ -58,12 +50,11 @@ export class QuerySourceReasoning implements IQuerySource {
     mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
     context: IActionContext
   ) {
-
-    this.bindingsFactory = bindingsFactory;
     this.innerSource = innerSource;
     this.sourceId = sourceId;
     const dataFactory = context.getSafe(KeysInitQuery.dataFactory);
     this.mediatorRdfMetadataAccumulate = mediatorRdfMetadataAccumulate;
+
     const getAllQuadsOperation = AF.createPattern(
       dataFactory.variable('s'),
       dataFactory.variable('p'),
@@ -72,7 +63,6 @@ export class QuerySourceReasoning implements IQuerySource {
     const ruleGraph = this.selectCorrespondingRuleSet(rules);
 
     const queryAllBindings = this.innerSource.queryBindings(getAllQuadsOperation, context);
-
     const quadStream = queryAllBindings.map(bindings => {
       return BindingsToQuadsIterator.bindQuad(bindings, dataFactory.quad(
         dataFactory.variable('s'),
@@ -84,10 +74,7 @@ export class QuerySourceReasoning implements IQuerySource {
     implicitQuads.on('end', () => {
       this.implicitQuadStore.end();
     });
-
     this.implicitQuadStore.import(implicitQuads);
-
-
     this.implicitQuadQuerySource = new QuerySourceRdfJs(
       this.implicitQuadStore,
       context.getSafe(KeysInitQuery.dataFactory),
@@ -176,7 +163,7 @@ export class QuerySourceReasoning implements IQuerySource {
     return ruleForAll;
   }
 
-  public async getSelectorShape(context: IActionContext): Promise<FragmentSelectorShape> {
+  public async getSelectorShape(): Promise<FragmentSelectorShape> {
     return this.selectorShape;
   }
 
@@ -189,7 +176,7 @@ export class QuerySourceReasoning implements IQuerySource {
       throw new Error('options in queryBindings are not supported in QuerySourceReasoning');
     }
     if (operation.type !== 'pattern') {
-      throw new Error(`Attempted to pass non-pattern operation '${operation.type}' to QuerySourceRdfJs`);
+      throw new Error(`Attempted to pass non-pattern operation '${operation.type}' to QuerySourceReasoning`);
     }
 
     const bindingStreamOriginal = this.innerSource.queryBindings(operation, context, options);
@@ -211,11 +198,8 @@ export class QuerySourceReasoning implements IQuerySource {
     return booleanRespOriginal || booleanRespImplicit;
   }
 
-  public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
-    const originalQuads = this.innerSource.queryQuads(operation, context);
-    const implicitQuads = this.implicitQuadQuerySource.queryQuads(operation, context);
-    console.log(implicitQuads.getProperties());
-    return new UnionIterator([originalQuads, implicitQuads], { autoStart: false });
+  public queryQuads(): AsyncIterator<RDF.Quad> {
+    throw new Error('queryQuads is not implemented in QuerySourceReasoning');
   }
 
   public queryVoid(): Promise<void> {
