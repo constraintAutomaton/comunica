@@ -25,15 +25,15 @@
       "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" }
     },
     {
-      "@id": "urn:comunica:default:query-source-identify-hypermedia/actors#none",
-      "@type": "ActorQuerySourceIdentifyHypermediaNone",
-      "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" }
-    },
-    {
       "@id": "urn:comunica:default:query-source-identify-hypermedia/actors#reasoning-wrapper",
       "@type": "ActorQuerySourceIdentifyHypermediaReasoningWrapper",
       "mediatorQuerySourceIdentifyHypermedia": { "@id": "urn:comunica:default:query-source-identify-hypermedia/mediators#main" },
-      "mediatorMetadataAccumulate": { "@id": "urn:comunica:default:rdf-metadata-accumulate/mediators#main" },
+      "mediatorRdfMetadataAccumulate": { "@id": "urn:comunica:default:rdf-metadata-accumulate/mediators#main" },
+      "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" }
+    },
+    {
+      "@id": "urn:comunica:default:query-source-identify-hypermedia/actors#none",
+      "@type": "ActorQuerySourceIdentifyHypermediaNone",
       "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" }
     }
   ]

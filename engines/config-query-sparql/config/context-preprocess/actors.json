@@ -6,8 +6,7 @@
     "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-set-defaults/^4.0.0/components/context.jsonld",
     "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-source-to-destination/^4.0.0/components/context.jsonld",
     "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-query-source-identify/^4.0.0/components/context.jsonld",
-    "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-query-source-skolemize/^4.0.0/components/context.jsonld",
-    "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-query-source-reasoning/^1.0.0/components/context.jsonld"
+    "https://linkedsoftwaredependencies.org/bundles/npm/@comunica/actor-context-preprocess-query-source-skolemize/^4.0.0/components/context.jsonld"
   ],
   "@id": "urn:comunica:default:Runner",
   "@type": "Runner",
@@ -34,12 +33,6 @@
     {
       "@id": "urn:comunica:default:context-preprocess/actors#query-source-skolemize",
       "@type": "ActorContextPreprocessQuerySourceSkolemize"
-    },
-    {
-      "@id": "urn:comunica:default:context-preprocess/actors#query-source-reasoning",
-      "@type": "ActorContextPreprocessQuerySourceReasoning",
-      "mediatorMergeBindingsContext": { "@id": "urn:comunica:default:merge-bindings-context/mediators#main" },
-      "mediatorRdfMetadataAccumulate": { "@id": "urn:comunica:default:rdf-metadata-accumulate/mediators#main" }
     }
   ]
 }

@@ -28,7 +28,7 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
   ): Promise<TestResult<IActorQuerySourceIdentifyHypermediaTest>> {
     const reasoningSourceMap = action.context.get(KeyReasoning.querySources);
     if (!reasoningSourceMap) {
-      action.context.set(KeyReasoning.querySources, new Map());
+      action.context = action.context.set(KeyReasoning.querySources, new Map());
       return passTest({ filterFactor: 0 });
     }
     if (reasoningSourceMap.has(action.url)) {
