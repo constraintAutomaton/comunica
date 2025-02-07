@@ -1,5 +1,6 @@
 import type * as RDF from '@rdfjs/types';
 import { DataFactory } from 'rdf-data-factory';
+import { QuerySourceReasoning } from './QuerySourceReasoning';
 
 const DF = new DataFactory();
 
@@ -7,6 +8,7 @@ export interface IRule {
   premise: Premise;
   operator: Operator;
   conclusion: Conclusion;
+  toString: () => string;
   forwardChaining: (quad: RDF.Quad) => RDF.Quad | undefined;
 }
 
@@ -18,6 +20,10 @@ export class SameAsRule implements IRule {
   public constructor(premise: Premise, conclusion: Conclusion) {
     this.premise = premise;
     this.conclusion = conclusion;
+  }
+
+  public toString(): string {
+    return `${this.premise.value}-${this.operator}-${this.conclusion.value}`;
   }
 
   public forwardChaining(quad: RDF.Quad): RDF.Quad | undefined {
@@ -48,6 +54,8 @@ export enum Operator {
 export interface IRuleGraph {
   rules: IRule[];
 }
+
+export type ReasoningQuerySourceMap = Map<string | RDF.Source, boolean>;
 
 export type ScopedRules = Map<string | RDF.Source, RDF.Quad[]>;
 

@@ -1,5 +1,5 @@
 import { KeysInitQuery } from '@comunica/context-entries';
-import {  type BindingsFactory } from '@comunica/utils-bindings-factory';
+import { type BindingsFactory } from '@comunica/utils-bindings-factory';
 import type {
   BindingsStream,
   FragmentSelectorShape,
@@ -8,17 +8,16 @@ import type {
   IQuerySource,
 } from '@comunica/types';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator, UnionIterator} from 'asynciterator';
+import { AsyncIterator, UnionIterator } from 'asynciterator';
 import type { Algebra } from 'sparqlalgebrajs';
 import { Factory } from 'sparqlalgebrajs';
-import { parseRules, IRuleGraph, ScopedRules } from './Rules';
+import { IRuleGraph } from './Rules';
 import { BindingsToQuadsIterator } from '@comunica/actor-query-operation-construct';
 import { StreamingStore } from 'rdf-streaming-store';
 import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union';
 
-const UriTemplate = require('uri-template-lite');
 
 const AF = new Factory();
 
@@ -32,7 +31,7 @@ export class QuerySourceReasoning implements IQuerySource {
    */
   public readonly sourceId?: string;
 
-  public readonly rules: IRuleGraph;
+  public readonly rulesString: string = "";
 
   protected readonly selectorShape: FragmentSelectorShape;
 
@@ -45,7 +44,7 @@ export class QuerySourceReasoning implements IQuerySource {
   public constructor(
     innerSource: IQuerySource,
     sourceId: string | undefined,
-    rules: ScopedRules,
+    ruleGraph: IRuleGraph,
     bindingsFactory: BindingsFactory,
     mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
     context: IActionContext
@@ -60,8 +59,9 @@ export class QuerySourceReasoning implements IQuerySource {
       dataFactory.variable('p'),
       dataFactory.variable('o'),
     );
-    const ruleGraph = this.selectCorrespondingRuleSet(rules);
-
+    for(const rule of ruleGraph.rules){
+      this.rulesString += "/" + rule.toString();
+    }
     const queryAllBindings = this.innerSource.queryBindings(getAllQuadsOperation, context);
     const quadStream = queryAllBindings.map(bindings => {
       return BindingsToQuadsIterator.bindQuad(bindings, dataFactory.quad(
@@ -134,35 +134,6 @@ export class QuerySourceReasoning implements IQuerySource {
     return implicitQuads;
   }
 
-  private selectCorrespondingRuleSet(rules: ScopedRules): IRuleGraph {
-    const ruleForAll: IRuleGraph = rules.get('*') === undefined ?
-      { rules: [] } :
-      parseRules(rules.get('*')!);
-
-    if (typeof this.referenceValue === 'string') {
-      const correspondingRules: IRuleGraph = ruleForAll;
-
-      for (const [domain, ruleSet] of rules) {
-        if (typeof domain === 'string') {
-          const template = new UriTemplate(domain);
-          if (template.match(this.referenceValue) !== null) {
-            const ruleGraph = parseRules(ruleSet);
-            correspondingRules.rules = [...correspondingRules.rules, ...ruleGraph.rules];
-          }
-        }
-      }
-    } else {
-      const rawRules = rules.get(this.referenceValue);
-      if (rawRules !== undefined) {
-        const localStoreRule: IRuleGraph = {
-          rules: ruleForAll.rules = [...ruleForAll.rules, ...parseRules(rawRules).rules],
-        };
-        return localStoreRule;
-      }
-    }
-    return ruleForAll;
-  }
-
   public async getSelectorShape(): Promise<FragmentSelectorShape> {
     return this.selectorShape;
   }
@@ -229,5 +200,3 @@ export class QuerySourceReasoning implements IQuerySource {
     return `QuerySourceReasoning(${this.innerSource.constructor.name})`;
   }
 }
-
-// actor-context-preprocess-query-source-reasoning
