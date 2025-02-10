@@ -6,7 +6,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -17,10 +17,11 @@ import type {
   IQuerySource,
   MetadataBindings,
   ILink,
+  QuerySourceReference,
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
-import type { AsyncIterator } from 'asynciterator';
+import { AsyncIterator } from 'asynciterator';
 import { TransformIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
@@ -29,6 +30,9 @@ import { Factory } from 'sparqlalgebrajs';
 import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
+import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
+import { ActorContextPreprocessQuerySourceReasoning, isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import { ArrayIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -47,6 +51,7 @@ export class QuerySourceHypermedia implements IQuerySource {
 
   private readonly cacheSize: number;
   private readonly maxIterators: number;
+  private aggregatedStoreQueryStoreReasoning: QuerySourceReasoningMultipleSources | undefined;
 
   public constructor(
     cacheSize: number,
@@ -85,6 +90,9 @@ export class QuerySourceHypermedia implements IQuerySource {
     // Optimized match with aggregated store if enabled and started.
     const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
     if (aggregatedStore && operation.type === 'pattern' && aggregatedStore.started) {
+      if (this.aggregatedStoreQueryStoreReasoning) {
+        return this.aggregatedStoreQueryStoreReasoning.queryBindings(operation, context);
+      }
       return new QuerySourceRdfJs(
         aggregatedStore,
         context.getSafe(KeysInitQuery.dataFactory),
@@ -130,7 +138,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   }
 
   public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
-    return new TransformIterator(async() => {
+    return new TransformIterator(async () => {
       const source = await this.getSourceCached({ url: this.firstUrl }, {}, context, this.getAggregateStore(context));
       return source.source.queryQuads(operation, context);
     });
@@ -211,11 +219,11 @@ export class QuerySourceHypermedia implements IQuerySource {
 
       // Log as warning, because the quads above may not always be consumed (e.g. for SPARQL endpoints),
       // so the user would not be notified of something going wrong otherwise.
-      this.logWarning(`Metadata extraction for ${url} failed: ${(<Error> error).message}`);
+      this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
     }
 
     // Aggregate all discovered quads into a store.
-    aggregatedStore?.setBaseMetadata(<MetadataBindings> metadata, false);
+    aggregatedStore?.setBaseMetadata(<MetadataBindings>metadata, false);
     aggregatedStore?.containedSources.add(link.url);
     aggregatedStore?.import(quads);
 
@@ -229,6 +237,36 @@ export class QuerySourceHypermedia implements IQuerySource {
       url,
     });
 
+    if (isQuerySourceReasoning(source)) {
+      if (this.aggregatedStoreQueryStoreReasoning) {
+        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
+      } else {
+        const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
+        if (aggregatedStore) {
+
+          const aggregatedSource = new QuerySourceRdfJs(
+            aggregatedStore,
+            context.getSafe(KeysInitQuery.dataFactory),
+            this.bindingsFactory,
+          );
+          const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
+          aggregatedStoreReasoningMetadata["reasoningAggregatedSore"] = aggregatedSource;
+          const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
+            context,
+            metadata: aggregatedStoreReasoningMetadata,
+            quads: new AsyncIterator(),
+            url,
+          });
+          if (isQuerySourceReasoningMultipleSources(source)) {
+            this.aggregatedStoreQueryStoreReasoning = source;
+          } else {
+            throw new Error("was not able to generate a reasoning source");
+          }
+        }
+
+      }
+    }
+
     if (dataset) {
       // Mark the dataset as applied
       // This is needed to make sure that things like QPF search forms are only applied once,
@@ -236,7 +274,7 @@ export class QuerySourceHypermedia implements IQuerySource {
       handledDatasets[dataset] = true;
     }
 
-    return { link, source, metadata: <MetadataBindings> metadata, handledDatasets };
+    return { link, source, metadata: <MetadataBindings>metadata, handledDatasets };
   }
 
   /**
@@ -274,7 +312,7 @@ export class QuerySourceHypermedia implements IQuerySource {
         if (!aggregatedStore) {
           aggregatedStore = new StreamingStoreMetadata(
             undefined,
-            async(accumulatedMetadata, appendingMetadata) => <MetadataBindings>
+            async (accumulatedMetadata, appendingMetadata) => <MetadataBindings>
               (await this.mediators.mediatorMetadataAccumulate.mediate({
                 mode: 'append',
                 accumulatedMetadata,

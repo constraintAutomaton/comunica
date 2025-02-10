@@ -25,7 +25,7 @@ export class QuerySourceReasoning implements IQuerySource {
   /**
    * The query source to wrap over.
    */
-  private readonly innerSource: IQuerySource;
+  protected readonly innerSource: IQuerySource;
   /**
    * ID of the inner source, see KeysQuerySourceIdentify.sourceIds.
    */
@@ -59,7 +59,7 @@ export class QuerySourceReasoning implements IQuerySource {
       dataFactory.variable('p'),
       dataFactory.variable('o'),
     );
-    for(const rule of ruleGraph.rules){
+    for (const rule of ruleGraph.rules) {
       this.rulesString += "/" + rule.toString();
     }
     const queryAllBindings = this.innerSource.queryBindings(getAllQuadsOperation, context);
@@ -141,7 +141,7 @@ export class QuerySourceReasoning implements IQuerySource {
   public queryBindings(
     operation: Algebra.Operation,
     context: IActionContext,
-    options: IQueryBindingsOptions | undefined,
+    options?: IQueryBindingsOptions | undefined,
   ): BindingsStream {
     if (options !== undefined) {
       throw new Error('options in queryBindings are not supported in QuerySourceReasoning');

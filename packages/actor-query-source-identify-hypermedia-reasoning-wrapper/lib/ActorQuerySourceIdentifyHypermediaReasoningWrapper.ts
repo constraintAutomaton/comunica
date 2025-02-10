@@ -49,25 +49,48 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
 
     const reasoningSourceMap = action.context.getSafe(KeyReasoning.querySources);
     reasoningSourceMap.set(action.url, true);
-    const innerSource = await this.mediatorQuerySourceIdentifyHypermedia.mediate(action);
 
     const sourceIds: Map<QuerySourceReference, string> = action.context.getSafe(KeysQuerySourceIdentify.sourceIds);
-    const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, innerSource.source.referenceValue);
     const dataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
 
-    const source = new QuerySourceReasoning(
-      innerSource.source,
-      getSourceId(sourceIds, innerSource.source),
-      effectiveRule,
-      await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
-      this.mediatorRdfMetadataAccumulate,
-      action.context,
-    );
+    const metadata = action.metadata;
+    const reasoningAggregatedStore = metadata["reasoningAggregatedSore"];
+    if (reasoningAggregatedStore) {
+      const innerSource = reasoningAggregatedStore;
+      const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, action.url);
 
-    return {
-      source,
-      dataset: innerSource.dataset
+      const source = new QuerySourceReasoning(
+        innerSource.source,
+        getSourceId(sourceIds, innerSource.source),
+        effectiveRule,
+        await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+        this.mediatorRdfMetadataAccumulate,
+        action.context,
+      );
+      return {
+        source,
+      }
+    } else {
+      const innerSource = await this.mediatorQuerySourceIdentifyHypermedia.mediate(action);
+
+      const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, innerSource.source.referenceValue);
+
+      const source = new QuerySourceReasoning(
+        innerSource.source,
+        getSourceId(sourceIds, innerSource.source),
+        effectiveRule,
+        await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+        this.mediatorRdfMetadataAccumulate,
+        action.context,
+      );
+
+      return {
+        source,
+        dataset: innerSource.dataset
+      }
     }
+
+
   }
 }
 
