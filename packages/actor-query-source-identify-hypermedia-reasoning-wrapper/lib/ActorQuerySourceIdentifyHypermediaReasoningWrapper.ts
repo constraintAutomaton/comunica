@@ -60,8 +60,8 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
       const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, action.url);
 
       const source = new QuerySourceReasoning(
-        innerSource.source,
-        getSourceId(sourceIds, innerSource.source),
+        innerSource,
+        getSourceId(sourceIds, innerSource),
         effectiveRule,
         await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
         this.mediatorRdfMetadataAccumulate,
