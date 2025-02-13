@@ -36,8 +36,10 @@ export class QuerySourceReasoning implements IQuerySource {
   protected readonly selectorShape: FragmentSelectorShape;
 
 
-  private readonly implicitQuadStore = new StreamingStore();
-  private readonly implicitQuadQuerySource: IQuerySource;
+  protected readonly implicitQuadStore = new StreamingStore();
+  protected readonly implicitQuadQuerySource: IQuerySource;
+
+  protected readonly autoClose: boolean = true;
 
   public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
 
@@ -59,6 +61,7 @@ export class QuerySourceReasoning implements IQuerySource {
       dataFactory.variable('p'),
       dataFactory.variable('o'),
     );
+
     for (const rule of ruleGraph.rules) {
       this.rulesString += "/" + rule.toString();
     }
@@ -71,9 +74,11 @@ export class QuerySourceReasoning implements IQuerySource {
     });
 
     const implicitQuads = this.generateImplicitQuads(ruleGraph, quadStream);
-    implicitQuads.on('end', () => {
-      this.implicitQuadStore.end();
-    });
+    if(this.autoClose){
+      implicitQuads.on('end', () => {
+        this.implicitQuadStore.end();
+      });
+    }
     this.implicitQuadStore.import(implicitQuads);
     this.implicitQuadQuerySource = new QuerySourceRdfJs(
       this.implicitQuadStore,

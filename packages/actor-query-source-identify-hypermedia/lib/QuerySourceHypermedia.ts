@@ -238,7 +238,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     });
 
     if (isQuerySourceReasoning(source)) {
-      if (this.aggregatedStoreQueryStoreReasoning) {
+      if (this.aggregatedStoreQueryStoreReasoning !== undefined) {
         this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
       } else {
         const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
@@ -250,7 +250,12 @@ export class QuerySourceHypermedia implements IQuerySource {
             this.bindingsFactory,
           );
           const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
-          aggregatedStoreReasoningMetadata["reasoningAggregatedSore"] = aggregatedSource;
+          aggregatedStoreReasoningMetadata["reasoningAggregatedStore"] = {
+            store: aggregatedStore,
+            source: aggregatedSource
+          };
+
+          aggregatedSource;
           const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
             context,
             metadata: aggregatedStoreReasoningMetadata,

@@ -1,12 +1,13 @@
 import { ActorContextPreprocessQuerySourceReasoning, ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
 import { QuerySourceReasoning } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoning';
+import { IClosingCondition, QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { getSourceId } from '@comunica/actor-context-preprocess-query-source-skolemize';
 import { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
 import { ActorQuerySourceIdentifyHypermedia, IActionQuerySourceIdentifyHypermedia, IActorQuerySourceIdentifyHypermediaOutput, IActorQuerySourceIdentifyHypermediaArgs, IActorQuerySourceIdentifyHypermediaTest, MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
 import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import { TestResult, IActorArgs, IActorTest, passTest, failTest } from '@comunica/core';
-import { QuerySourceReference } from '@comunica/types';
+import { IAggregatedStore, IQuerySource, QuerySourceReference } from '@comunica/types';
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 
@@ -54,18 +55,27 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
     const dataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
 
     const metadata = action.metadata;
-    const reasoningAggregatedStore = metadata["reasoningAggregatedSore"];
-    if (reasoningAggregatedStore) {
-      const innerSource = reasoningAggregatedStore;
-      const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, action.url);
+    if (metadata["reasoningAggregatedStore"] !== undefined) {
+      const innerSource = <IQuerySource>metadata["reasoningAggregatedStore"]["source"];
 
-      const source = new QuerySourceReasoning(
+      const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, action.url);
+      const closingCondition: IClosingCondition = {
+        closeHint: (callback: () => void) => {
+          const aggregatedStore = <IAggregatedStore>metadata["reasoningAggregatedStore"]["store"];
+          const it = aggregatedStore.match(null, null, null, null);
+          it.on("end", () => {
+            callback();
+          })
+        }
+      }
+      const source = new QuerySourceReasoningMultipleSources(
         innerSource,
         getSourceId(sourceIds, innerSource),
         effectiveRule,
         await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
         this.mediatorRdfMetadataAccumulate,
         action.context,
+        closingCondition
       );
       return {
         source,
