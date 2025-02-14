@@ -10,6 +10,7 @@ import { IRuleGraph, ScopedRules } from './Rules';
 import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { QuerySourceReasoning } from './QuerySourceReasoning';
 import { ActorContextPreprocessQuerySourceReasoning } from './ActorContextPreprocessQuerySourceReasoning';
+import { IClosingCondition } from './util';
 
 export class QuerySourceReasoningMultipleSources extends QuerySourceReasoning {
 
@@ -41,7 +42,7 @@ export class QuerySourceReasoningMultipleSources extends QuerySourceReasoning {
             return;
         }
         const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
-        const implicitQuads = this.generateImplicitQuads(effectiveRule, quadStream);
+        const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, quadStream);
 
         this.implicitQuadStore.import(implicitQuads);
     }
@@ -51,6 +52,3 @@ export class QuerySourceReasoningMultipleSources extends QuerySourceReasoning {
     }
 }
 
-export interface IClosingCondition {
-    closeHint: (callback: () => void) => void
-}

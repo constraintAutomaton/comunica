@@ -35,7 +35,6 @@ export class QuerySourceReasoning implements IQuerySource {
 
   protected readonly selectorShape: FragmentSelectorShape;
 
-
   protected readonly implicitQuadStore = new StreamingStore();
   protected readonly implicitQuadQuerySource: IQuerySource;
 
@@ -73,8 +72,8 @@ export class QuerySourceReasoning implements IQuerySource {
         dataFactory.variable('o')))!
     });
 
-    const implicitQuads = this.generateImplicitQuads(ruleGraph, quadStream);
-    if(this.autoClose){
+    const implicitQuads = QuerySourceReasoning.generateImplicitQuads(ruleGraph, quadStream);
+    if (this.autoClose) {
       implicitQuads.on('end', () => {
         this.implicitQuadStore.end();
       });
@@ -103,12 +102,17 @@ export class QuerySourceReasoning implements IQuerySource {
       ],
     };
   }
-
-  public generateImplicitQuads(ruleGraph: IRuleGraph, quadStream: AsyncIterator<RDF.Quad>): AsyncIterator<RDF.Quad> {
+  /**
+   * Generate the implicit quads based a provided rules and a quad stream
+   * @param {IRuleGraph} ruleGraph - Rules to be applied over the quad stream
+   * @param {AsyncIterator<RDF.Quad>} quadStream - quad stream that the rules are applied over
+   * @returns {AsyncIterator<RDF.Quad>} implicit quads generated
+   */
+  public static generateImplicitQuads(ruleGraph: IRuleGraph, quadStream: AsyncIterator<RDF.Quad>): AsyncIterator<RDF.Quad> {
     const implicitQuadsStream: AsyncIterator<RDF.Quad> = quadStream.transform({
       autoStart: false,
       transform: (quad: RDF.Quad, done, push) => {
-        const implicitQuads = this.reasoningLoop(ruleGraph, quad);
+        const implicitQuads = this.chainReasoningOverAQuad(ruleGraph, quad);
         for (const implicitQuad of implicitQuads) {
           push(implicitQuad);
         }
@@ -117,24 +121,26 @@ export class QuerySourceReasoning implements IQuerySource {
     });
     return implicitQuadsStream;
   }
-
-  private reasoningLoop(ruleGraph: IRuleGraph, quad: RDF.Quad): RDF.Quad[] {
+  /**
+   * Apply a chain of reasoning over a single quad
+   * @param {ruleGraph} ruleGraph - Rules to be applied
+   * @param {RDF.Quad} quad - Quad
+   * @returns An array of implicit quads
+   */
+  public static chainReasoningOverAQuad(ruleGraph: IRuleGraph, quad: RDF.Quad): RDF.Quad[] {
     const implicitQuads: RDF.Quad[] = [];
-    let noNewQuad = false;
-    let currentQuad = quad;
+    const queueQuads: RDF.Quad[] = [];
+    let currentQuad: RDF.Quad | undefined = quad;
     do {
-      noNewQuad = true;
       for (const rule of ruleGraph.rules) {
         const implicitQuad = rule.forwardChaining(currentQuad);
         if (implicitQuad !== undefined) {
           implicitQuads.push(implicitQuad);
-          currentQuad = implicitQuad;
-          noNewQuad = false;
-        } else {
-          noNewQuad = noNewQuad && true;
+          queueQuads.push(implicitQuad);
         }
       }
-    } while (noNewQuad === false)
+      currentQuad = queueQuads.pop();
+    } while (currentQuad !== undefined)
 
     return implicitQuads;
   }

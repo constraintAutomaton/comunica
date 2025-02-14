@@ -1,21 +1,13 @@
 import type * as RDF from '@rdfjs/types';
 import { DataFactory } from 'rdf-data-factory';
-import { QuerySourceReasoning } from './QuerySourceReasoning';
 
 const DF = new DataFactory();
 
-export interface IRule {
-  premise: Premise;
-  operator: Operator;
-  conclusion: Conclusion;
-  toString: () => string;
-  forwardChaining: (quad: RDF.Quad) => RDF.Quad | undefined;
-}
-
-export class SameAsRule implements IRule {
+export abstract class Rule {
   public readonly premise: Premise;
-  public readonly operator: Operator = Operator.SAME_AS;
+  public readonly operator: Operator;
   public readonly conclusion: Conclusion;
+
 
   public constructor(premise: Premise, conclusion: Conclusion) {
     this.premise = premise;
@@ -26,6 +18,13 @@ export class SameAsRule implements IRule {
     return `${this.premise.value}-${this.operator}-${this.conclusion.value}`;
   }
 
+  abstract forwardChaining(quad: RDF.Quad): RDF.Quad | undefined;
+}
+
+export class SameAsRule extends Rule {
+  public override readonly operator: Operator = Operator.SAME_AS;
+
+
   public forwardChaining(quad: RDF.Quad): RDF.Quad | undefined {
     if (quad.subject.equals(this.premise) && this.conclusion.termType !== 'Literal') {
       return DF.quad(this.conclusion, quad.predicate, quad.object, quad.graph);
@@ -35,13 +34,15 @@ export class SameAsRule implements IRule {
       return DF.quad(quad.subject, this.conclusion, quad.object, quad.graph);
     }
 
-    if (quad.object.equals(this.premise) && this.conclusion.termType !== 'Literal') {
+    if (quad.object.equals(this.premise)) {
       return DF.quad(quad.subject, quad.predicate, this.conclusion, quad.graph);
     }
 
     if (quad.graph.equals(this.premise) && this.conclusion.termType !== 'Literal') {
       return DF.quad(quad.subject, quad.predicate, quad.object, this.conclusion);
     }
+
+    return undefined;
   }
 }
 
@@ -52,7 +53,7 @@ export enum Operator {
 }
 
 export interface IRuleGraph {
-  rules: IRule[];
+  rules: Rule[];
 }
 
 export type ReasoningQuerySourceMap = Map<string | RDF.Source, boolean>;
@@ -69,7 +70,7 @@ export function parseRules(quads: RDF.Quad[]): IRuleGraph {
       (quad.object.termType === 'Literal' || quad.object.termType === 'NamedNode') &&
       (quad.subject.termType === 'NamedNode')
     ) {
-      const rule: IRule = new SameAsRule(
+      const rule: Rule = new SameAsRule(
         quad.subject,
         quad.object,
       );

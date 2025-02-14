@@ -9,3 +9,7 @@ export function isQuerySourceReasoning(querySource: IQuerySource): querySource i
 export function isQuerySourceReasoningMultipleSources(querySource: IQuerySource): querySource is QuerySourceReasoningMultipleSources {
     return querySource.toString().includes("QuerySourceReasoningMultipleSources");
 }
+
+export interface IClosingCondition {
+    closeHint: (callback: () => void) => void
+}

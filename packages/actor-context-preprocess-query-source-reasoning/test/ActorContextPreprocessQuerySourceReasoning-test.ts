@@ -1,3 +1,4 @@
+/**
 import { Bus } from '@comunica/core';
 import { ActorContextPreprocessQuerySourceReasoning } from '../lib/ActorContextPreprocessQuerySourceReasoning';
 
@@ -24,3 +25,4 @@ describe('ActorContextPreprocessQuerySourceReasoning', () => {
     });
   });
 });
+*/

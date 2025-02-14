@@ -1,6 +1,6 @@
-import { ActorContextPreprocessQuerySourceReasoning, ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import { ActorContextPreprocessQuerySourceReasoning, IClosingCondition, ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
 import { QuerySourceReasoning } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoning';
-import { IClosingCondition, QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
+import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { getSourceId } from '@comunica/actor-context-preprocess-query-source-skolemize';
 import { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
 import { ActorQuerySourceIdentifyHypermedia, IActionQuerySourceIdentifyHypermedia, IActorQuerySourceIdentifyHypermediaOutput, IActorQuerySourceIdentifyHypermediaArgs, IActorQuerySourceIdentifyHypermediaTest, MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
