@@ -73,15 +73,11 @@ export class QuerySourceReasoning implements IQuerySource {
     });
 
     const implicitQuads = QuerySourceReasoning.generateImplicitQuads(ruleGraph, quadStream);
-    if (this.autoClose) {
-      implicitQuads.on('end', () => {
-        this.implicitQuadStore.end();
-      });
-    }
+
     this.implicitQuadStore.import(implicitQuads);
     this.implicitQuadQuerySource = new QuerySourceRdfJs(
       this.implicitQuadStore,
-      context.getSafe(KeysInitQuery.dataFactory),
+      dataFactory,
       bindingsFactory,
     );
 
@@ -101,6 +97,12 @@ export class QuerySourceReasoning implements IQuerySource {
         dataFactory.variable('o'),
       ],
     };
+
+    if (this.autoClose) {
+      implicitQuads.on('end', () => {
+        this.implicitQuadStore.end();
+      });
+    }
   }
   /**
    * Generate the implicit quads based a provided rules and a quad stream
@@ -208,6 +210,6 @@ export class QuerySourceReasoning implements IQuerySource {
 
 
   public toString(): string {
-    return `QuerySourceReasoning(${this.innerSource.constructor.name})`;
+    return `QuerySourceReasoning(${this.innerSource.toString()})`;
   }
 }
