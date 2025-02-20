@@ -170,16 +170,14 @@ export class QuerySourceReasoning implements IQuerySource {
 
     if (!unions.getProperty('metadata')) {
       this.setMetadata(unions, bindingStreamOriginal, implicitBindingStream, context)
-        .catch(error => unions.destroy(error));
+        .catch(error =>unions.destroy(error));
     }
 
     return unions;
   }
 
-  public async queryBoolean(operation: Algebra.Ask, context: IActionContext): Promise<boolean> {
-    const booleanRespOriginal = await this.innerSource.queryBoolean(operation, context);
-    const booleanRespImplicit = await this.implicitQuadQuerySource.queryBoolean(operation, context);
-    return booleanRespOriginal || booleanRespImplicit;
+  public async queryBoolean(): Promise<boolean> {
+    throw new Error('queryBoolean is not implemented in QuerySourceReasoning');
   }
 
   public queryQuads(): AsyncIterator<RDF.Quad> {
