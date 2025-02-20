@@ -379,6 +379,7 @@ describe('QuerySourceReasoning', () => {
             expect(await querySource.getSelectorShape()).toStrictEqual(selectorShape);
             expect(querySource.referenceValue).toStrictEqual("foo");
             expect((<any>querySource).implicitQuadStore.ended).toBe(true);
+            expect(querySource.closed).toBe(true);
         });
     });
 
@@ -452,7 +453,6 @@ describe('QuerySourceReasoning', () => {
                 context);
             (<any>querySource).implicitQuadQuerySource = {
                 queryBindings: jest.fn(),
-                queryBoolean: jest.fn()
             }
         });
 

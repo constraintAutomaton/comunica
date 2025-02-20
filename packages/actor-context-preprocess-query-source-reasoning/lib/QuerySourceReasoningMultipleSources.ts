@@ -8,14 +8,16 @@ import type * as RDF from '@rdfjs/types';
 import { AsyncIterator } from 'asynciterator';
 import { IRuleGraph, ScopedRules } from './Rules';
 import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
-import { QuerySourceReasoning } from './QuerySourceReasoning';
+import { AbstractQuerySourceReasoning } from './QuerySourceReasoning';
 import { ActorContextPreprocessQuerySourceReasoning } from './ActorContextPreprocessQuerySourceReasoning';
 import { IClosingCondition } from './util';
+import { EventEmitter } from 'events';
 
-export class QuerySourceReasoningMultipleSources extends QuerySourceReasoning {
+export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReasoning {
 
+    private importCounter: number = 0;
+    private readonly safeClosingEvent: EventEmitter = new EventEmitter();
 
-    protected override readonly autoClose: boolean = false;
 
     public constructor(
         innerSource: IQuerySource,
@@ -26,25 +28,46 @@ export class QuerySourceReasoningMultipleSources extends QuerySourceReasoning {
         context: IActionContext,
         closingEvent: IClosingCondition,
     ) {
-        super(innerSource, sourceId, ruleGraph, bindingsFactory, mediatorRdfMetadataAccumulate, context);
+        super(innerSource, sourceId, ruleGraph, bindingsFactory, mediatorRdfMetadataAccumulate, context, false);
         closingEvent.closeHint(() => {
-            this.implicitQuadStore.end();
+            this.close();
         });
     }
 
-    public close(): void {
-        this.implicitQuadStore.end();
+    public override close(): void {
+        if (this.importCounter === 0) {
+            this.implicitQuadStore.end();
+        } else {
+            this.safeClosingEvent.on("close", () => {
+                this.implicitQuadStore.end();
+            });
+        }
+        this.isclose = true;
+
     }
 
-    public addSource(quadStream: AsyncIterator<RDF.Quad>, url: string, context: IActionContext) {
+    public addSource(quadStream: AsyncIterator<RDF.Quad>, url: string, context: IActionContext): Error | undefined {
+        this.importCounter += 1;
+        if (this.isclose) {
+            return new Error("The query source is closed");
+        }
+
         let rules: ScopedRules | undefined = context.get(KeyReasoning.rules);
         if (rules === undefined) {
-            return;
+            return new Error('the "KeyReasoning" is not defined in the context');
         }
         const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
         const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, quadStream);
 
-        this.implicitQuadStore.import(implicitQuads);
+        const eventImport = this.implicitQuadStore.import(implicitQuads);
+
+        eventImport.on("end", () => {
+            this.importCounter -= 1;
+            if (this.importCounter === 0) {
+                this.safeClosingEvent.emit("close");
+            }
+        });
+
     }
 
     public override toString(): string {

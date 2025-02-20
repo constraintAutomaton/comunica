@@ -21,10 +21,10 @@ import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union'
 
 const AF = new Factory();
 
-export class QuerySourceReasoning implements IQuerySource {
+export abstract class AbstractQuerySourceReasoning implements IQuerySource {
   /**
-   * The query source to wrap over.
-   */
+ * The query source to wrap over.
+ */
   protected readonly innerSource: IQuerySource;
   /**
    * ID of the inner source, see KeysQuerySourceIdentify.sourceIds.
@@ -38,9 +38,9 @@ export class QuerySourceReasoning implements IQuerySource {
   protected readonly implicitQuadStore = new StreamingStore();
   protected readonly implicitQuadQuerySource: IQuerySource;
 
-  protected readonly autoClose: boolean = true;
-
   public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
+
+  protected isclose: boolean = false;
 
   public constructor(
     innerSource: IQuerySource,
@@ -48,7 +48,8 @@ export class QuerySourceReasoning implements IQuerySource {
     ruleGraph: IRuleGraph,
     bindingsFactory: BindingsFactory,
     mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
-    context: IActionContext
+    context: IActionContext,
+    autoClose: boolean
   ) {
     this.innerSource = innerSource;
     this.sourceId = sourceId;
@@ -98,9 +99,10 @@ export class QuerySourceReasoning implements IQuerySource {
       ],
     };
 
-    if (this.autoClose) {
+    if (autoClose) {
       implicitQuads.on('end', () => {
         this.implicitQuadStore.end();
+        this.isclose = true;
       });
     }
   }
@@ -170,7 +172,7 @@ export class QuerySourceReasoning implements IQuerySource {
 
     if (!unions.getProperty('metadata')) {
       this.setMetadata(unions, bindingStreamOriginal, implicitBindingStream, context)
-        .catch(error =>unions.destroy(error));
+        .catch(error => unions.destroy(error));
     }
 
     return unions;
@@ -192,6 +194,15 @@ export class QuerySourceReasoning implements IQuerySource {
     return this.innerSource.referenceValue;
   }
 
+  public get closed(): boolean {
+    return this.isclose;
+  }
+
+  public close(): void {
+    this.implicitQuadStore.end();
+    this.isclose = true;
+  }
+
   protected async setMetadata(
     it: BindingsStream,
     originalBindingStream: BindingsStream,
@@ -207,7 +218,23 @@ export class QuerySourceReasoning implements IQuerySource {
   }
 
 
-  public toString(): string {
+  abstract toString(): string;
+}
+
+export class QuerySourceReasoning extends AbstractQuerySourceReasoning {
+
+  public constructor(
+    innerSource: IQuerySource,
+    sourceId: string | undefined,
+    ruleGraph: IRuleGraph,
+    bindingsFactory: BindingsFactory,
+    mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
+    context: IActionContext,
+  ) {
+    super(innerSource, sourceId, ruleGraph, bindingsFactory, mediatorRdfMetadataAccumulate, context, true);
+  }
+
+  public override toString(): string {
     return `QuerySourceReasoning(${this.innerSource.toString()})`;
   }
 }
