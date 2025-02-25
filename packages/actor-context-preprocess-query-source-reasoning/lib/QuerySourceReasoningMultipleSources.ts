@@ -75,7 +75,7 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
     }
 
     public override toString(): string {
-        return `QuerySourceReasoningMultipleSources(${this.innerSource.constructor.name})`;
+        return `QuerySourceReasoningMultipleSources(${this.innerSource.toString()})`;
     }
 }
 

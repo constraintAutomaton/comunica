@@ -953,7 +953,6 @@ describe('QuerySourceReasoning', () => {
 
                     }
                 ),
-                queryBoolean: jest.fn(),
                 toString: () => innerSourceName
             };
             const rules: IRuleGraph = {

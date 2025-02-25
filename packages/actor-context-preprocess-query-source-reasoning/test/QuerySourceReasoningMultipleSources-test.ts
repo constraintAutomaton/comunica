@@ -306,7 +306,7 @@ describe("QuerySourceReasoningMultipleSources", () => {
                 });
                 const implicitStore = <StreamingStore>(<any>querySource).implicitQuadStore;
 
-                const resp = implicitStore.match(undefined, undefined, undefined, undefined);
+                const resp = implicitStore.match();
 
                 const quads: RDF.Quad[] = [];
                 resp.on("data", (quad: RDF.Quad) => {
@@ -351,4 +351,90 @@ describe("QuerySourceReasoningMultipleSources", () => {
             expect(querySource?.addSource(quadStream, "foo", context)).toStrictEqual(new Error('the "KeyReasoning" is not defined in the context'));
         });
     });
+
+    describe("toString", () => {
+        let querySource: QuerySourceReasoningMultipleSources | undefined;
+        let innerSource: any;
+        const innerSourceName = "bar"
+
+        beforeEach(() => {
+            const quadStream = fromArray([]);
+            innerSource = {
+                queryBindings: jest.fn().mockReturnValueOnce(
+                    {
+                        map: () => quadStream,
+                        referenceValue: "foo"
+
+                    }
+                ),
+                toString: () => innerSourceName
+            };
+            const rules: IRuleGraph = {
+                rules: [
+                    new SameAsRule(
+                        DF.namedNode("s"),
+                        DF.namedNode("c")
+                    )
+                ]
+            };
+            const sourceId = undefined;
+            const mediatorRdfMetadataAccumulate: any = <any>{
+                async mediate(action: IActionRdfMetadataAccumulate) {
+                    if (action.mode === 'initialize') {
+                        return { metadata: { cardinality: { type: 'exact', value: 0 } } };
+                    }
+
+                    const metadata = { ...action.accumulatedMetadata };
+                    const subMetadata = action.appendingMetadata;
+                    if (!subMetadata.cardinality || !Number.isFinite(subMetadata.cardinality.value)) {
+                        // We're already at infinite, so ignore any later metadata
+                        metadata.cardinality.type = 'estimate';
+                        metadata.cardinality.value = Number.POSITIVE_INFINITY;
+                    } else {
+                        if (subMetadata.cardinality.type === 'estimate') {
+                            metadata.cardinality.type = 'estimate';
+                        }
+                        metadata.cardinality.value += subMetadata.cardinality.value;
+                    }
+                    if (metadata.requestTime ?? subMetadata.requestTime) {
+                        metadata.requestTime = metadata.requestTime ?? 0;
+                        subMetadata.requestTime = subMetadata.requestTime ?? 0;
+                        metadata.requestTime += subMetadata.requestTime;
+                    }
+                    if (metadata.pageSize ?? subMetadata.pageSize) {
+                        metadata.pageSize = metadata.pageSize ?? 0;
+                        subMetadata.pageSize = subMetadata.pageSize ?? 0;
+                        metadata.pageSize += subMetadata.pageSize;
+                    }
+
+                    return { metadata };
+                },
+            };
+            const context = new ActionContext({
+                [KeysInitQuery.dataFactory.name]: DF,
+            });
+
+            const closingEvent: IClosingCondition = {
+                closeHint: (_callback: () => void) => {
+                }
+            };
+
+            querySource = new QuerySourceReasoningMultipleSources(
+                innerSource,
+                sourceId,
+                rules,
+                BF,
+                mediatorRdfMetadataAccumulate,
+                context,
+                closingEvent
+            );
+            (<any>querySource).implicitQuadQuerySource = {
+                queryBindings: jest.fn(),
+            }
+        });
+            it("return a string", () => {
+                expect(querySource!.toString()).toBe(`QuerySourceReasoningMultipleSources(${innerSourceName})`);
+            })
+        });
+    
 });
