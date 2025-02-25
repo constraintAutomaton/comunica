@@ -10,6 +10,7 @@ import { Algebra, Factory } from 'sparqlalgebrajs';
 import { AbstractQuerySourceReasoning } from '../lib/QuerySourceReasoning';
 import { IActionRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { StreamingStore } from 'rdf-streaming-store';
+import "jest-rdf";
 
 const DF = new DataFactory();
 const BF = new BindingsFactory(DF);
@@ -303,12 +304,9 @@ describe("QuerySourceReasoningMultipleSources", () => {
                 const context = new ActionContext({
                     [KeyReasoning.rules.name]: new Map([["foo", quadRules]])
                 });
-                expect(querySource?.addSource(quadStream, "foo", context)).toBeUndefined();
+                const implicitStore = <StreamingStore>(<any>querySource).implicitQuadStore;
 
-                const resp = (<StreamingStore>(<any>querySource).implicitQuadStore).match(null, null, null);
-
-                querySource?.close();
-                
+                const resp = implicitStore.match(undefined, undefined, undefined, undefined);
 
                 const quads: RDF.Quad[] = [];
                 resp.on("data", (quad: RDF.Quad) => {
@@ -316,7 +314,7 @@ describe("QuerySourceReasoningMultipleSources", () => {
                 });
 
                 resp.on("end", () => {
-                    expect(quads).toStrictEqual([
+                    expect(quads).toBeRdfIsomorphic([
                         DF.quad(
                             DF.namedNode("o"),
                             DF.namedNode("p"),
@@ -330,8 +328,11 @@ describe("QuerySourceReasoningMultipleSources", () => {
                     ]);
                     resolve(undefined);
                 });
-            });
 
+                expect(querySource?.addSource(quadStream, "foo", context)).toBeUndefined();
+
+                querySource?.close();
+            });
         });
 
         it("should return an error if the query source is closed", () => {

@@ -35,15 +35,19 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
     }
 
     public override close(): void {
+        console.log(`entering closing counter ${this.importCounter}`);
         if (this.importCounter === 0) {
             this.implicitQuadStore.end();
         } else {
             this.safeClosingEvent.on("close", () => {
-                this.implicitQuadStore.end();
+                // because the store may need another "tick" to finish the import of its quads
+                setImmediate(()=>{
+                    this.implicitQuadStore.end();
+
+                })
             });
         }
         this.isclose = true;
-
     }
 
     public addSource(quadStream: AsyncIterator<RDF.Quad>, url: string, context: IActionContext): Error | undefined {
