@@ -222,10 +222,17 @@ export class QuerySourceHypermedia implements IQuerySource {
       this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
     }
 
-    // Aggregate all discovered quads into a store.
-    aggregatedStore?.setBaseMetadata(<MetadataBindings>metadata, false);
-    aggregatedStore?.containedSources.add(link.url);
-    aggregatedStore?.import(quads);
+    const quadsIterator = wrapAsyncIterator(quads, { autoStart: false });
+    const [
+      quadDestinationQuerySourceIdentify,
+      quadDestinationReasoningQuerySource
+    ] = [quadsIterator.clone(), quadsIterator.clone()];
+    if (aggregatedStore) {
+      // Aggregate all discovered quads into a store.
+      aggregatedStore.setBaseMetadata(<MetadataBindings>metadata, false);
+      aggregatedStore.containedSources.add(link.url);
+      aggregatedStore.import(quadsIterator.clone());
+    }
 
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
@@ -233,29 +240,25 @@ export class QuerySourceHypermedia implements IQuerySource {
       forceSourceType: link.url === this.firstUrl ? this.forceSourceType : undefined,
       handledDatasets,
       metadata,
-      quads,
+      quads: quadDestinationQuerySourceIdentify,
       url,
     });
 
     if (isQuerySourceReasoning(source)) {
       if (this.aggregatedStoreQueryStoreReasoning !== undefined) {
-        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
+        this.aggregatedStoreQueryStoreReasoning.addSource(quadDestinationReasoningQuerySource, link.url, context);
       } else {
-        const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
         if (aggregatedStore) {
-
           const aggregatedSource = new QuerySourceRdfJs(
             aggregatedStore,
             context.getSafe(KeysInitQuery.dataFactory),
             this.bindingsFactory,
           );
-          const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
+          const aggregatedStoreReasoningMetadata = metadata;
           aggregatedStoreReasoningMetadata["reasoningAggregatedStore"] = {
             store: aggregatedStore,
             source: aggregatedSource
           };
-
-          aggregatedSource;
           const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
             context,
             metadata: aggregatedStoreReasoningMetadata,

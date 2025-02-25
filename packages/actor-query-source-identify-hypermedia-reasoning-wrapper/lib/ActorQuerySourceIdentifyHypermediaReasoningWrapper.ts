@@ -9,7 +9,6 @@ import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/
 import { TestResult, IActorArgs, IActorTest, passTest, failTest } from '@comunica/core';
 import { IAggregatedStore, IQuerySource, QuerySourceReference } from '@comunica/types';
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
-import type * as RDF from '@rdfjs/types';
 
 /**
  * A comunica Reasoning Wrapper Query Source Identify Hypermedia Actor.
@@ -62,7 +61,14 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
       const closingCondition: IClosingCondition = {
         closeHint: (callback: () => void) => {
           const aggregatedStore = <IAggregatedStore>metadata["reasoningAggregatedStore"]["store"];
-          const it = aggregatedStore.match(null, null, null, null);
+          const it = aggregatedStore.match();
+          it.on("data", () => {
+            return;
+          });
+
+          it.on("error", () => {
+            callback();
+          })
           it.on("end", () => {
             callback();
           })

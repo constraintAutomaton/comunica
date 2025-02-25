@@ -38,12 +38,13 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
         console.log(`entering closing counter ${this.importCounter}`);
         if (this.importCounter === 0) {
             this.implicitQuadStore.end();
+            console.log(`closing imediatly`);
         } else {
             this.safeClosingEvent.on("close", () => {
                 // because the store may need another "tick" to finish the import of its quads
-                setImmediate(()=>{
+                setImmediate(() => {
                     this.implicitQuadStore.end();
-
+                    console.log(`closing after waiting for the import to finish`);
                 })
             });
         }
@@ -67,6 +68,7 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
 
         eventImport.on("end", () => {
             this.importCounter -= 1;
+            //console.log(`closing an import statement number of current ${this.importCounter}`);
             if (this.importCounter === 0) {
                 this.safeClosingEvent.emit("close");
             }
