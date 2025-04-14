@@ -11,6 +11,8 @@ import { AbstractQuerySourceReasoning } from '../lib/QuerySourceReasoning';
 import { IActionRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { StreamingStore } from 'rdf-streaming-store';
 import "jest-rdf";
+import { MetadataBindings } from '@comunica/types';
+import { MetadataValidationState } from '@comunica/utils-metadata';
 
 const DF = new DataFactory();
 const BF = new BindingsFactory(DF);
@@ -432,9 +434,158 @@ describe("QuerySourceReasoningMultipleSources", () => {
                 queryBindings: jest.fn(),
             }
         });
-            it("return a string", () => {
-                expect(querySource!.toString()).toBe(`QuerySourceReasoningMultipleSources(${innerSourceName})`);
-            })
+        it("return a string", () => {
+            expect(querySource!.toString()).toBe(`QuerySourceReasoningMultipleSources(${innerSourceName})`);
+        })
+    });
+
+    describe("queryBindings", () => {
+        let querySource: QuerySourceReasoningMultipleSources | undefined;
+        let innerSource: any;
+        let innerStore: StreamingStore = new StreamingStore()
+
+        beforeEach(() => {
+            innerStore = new StreamingStore();
+            const quadStream = fromArray([]);
+            innerSource = {
+                queryBindings: jest.fn().mockReturnValueOnce(
+                    {
+                        map: () => quadStream,
+                        referenceValue: "foo"
+
+                    }
+                ),
+                queryBoolean: jest.fn()
+            };
+            const rules: IRuleGraph = {
+                rules: [
+                    new SameAsRule(
+                        DF.namedNode("s"),
+                        DF.namedNode("c")
+                    )
+                ]
+            };
+            const sourceId = undefined;
+            const mediatorRdfMetadataAccumulate: any = <any>{
+                async mediate(action: IActionRdfMetadataAccumulate) {
+                    if (action.mode === 'initialize') {
+                        return { metadata: { cardinality: { type: 'exact', value: 0 } } };
+                    }
+
+                    const metadata = { ...action.accumulatedMetadata };
+                    const subMetadata = action.appendingMetadata;
+                    if (!subMetadata.cardinality || !Number.isFinite(subMetadata.cardinality.value)) {
+                        // We're already at infinite, so ignore any later metadata
+                        metadata.cardinality.type = 'estimate';
+                        metadata.cardinality.value = Number.POSITIVE_INFINITY;
+                    } else {
+                        if (subMetadata.cardinality.type === 'estimate') {
+                            metadata.cardinality.type = 'estimate';
+                        }
+                        metadata.cardinality.value += subMetadata.cardinality.value;
+                    }
+                    if (metadata.requestTime ?? subMetadata.requestTime) {
+                        metadata.requestTime = metadata.requestTime ?? 0;
+                        subMetadata.requestTime = subMetadata.requestTime ?? 0;
+                        metadata.requestTime += subMetadata.requestTime;
+                    }
+                    if (metadata.pageSize ?? subMetadata.pageSize) {
+                        metadata.pageSize = metadata.pageSize ?? 0;
+                        subMetadata.pageSize = subMetadata.pageSize ?? 0;
+                        metadata.pageSize += subMetadata.pageSize;
+                    }
+
+                    return { metadata };
+                },
+            };
+            const context = new ActionContext({
+                [KeysInitQuery.dataFactory.name]: DF,
+            });
+
+            const closingEvent: IClosingCondition = {
+                closeHint: (_callback: () => void) => {
+                }
+            };
+
+            querySource = new QuerySourceReasoningMultipleSources(
+                innerSource,
+                sourceId,
+                rules,
+                BF,
+                mediatorRdfMetadataAccumulate,
+                context,
+                closingEvent
+            );
+            (<any>querySource).implicitQuadQuerySource = {
+                queryBindings: jest.fn(),
+            }
         });
-    
+
+        it('should return a quad stream when the store has ended', async () => {
+            const operation: any = {
+                type: "pattern"
+            };
+            const context: any = {};
+            const implicitBinding = [
+                BF.bindings([[DF.variable("foo"), DF.namedNode("Ibar")]]),
+                BF.bindings([[DF.variable("foo1"), DF.namedNode("Ibar1")]])
+            ];
+            const originalBinding = [
+                BF.bindings([[DF.variable("foo"), DF.namedNode("bar")]]),
+                BF.bindings([[DF.variable("foo1"), DF.namedNode("bar1")]])
+            ];
+
+            const expectedBindings = [
+                ...originalBinding,
+                ...implicitBinding
+            ];
+
+
+            const metadata: MetadataBindings = {
+                variables: [
+                    {
+                        variable: DF.variable('a'),
+                        canBeUndef: true
+                    }
+                ],
+                canBeUndef: true,
+                cardinality: { type: 'exact', value: 5 },
+                state: new MetadataValidationState(),
+            };
+
+            const originalBindingStream = fromArray(originalBinding);
+            originalBindingStream.setProperty("metadata", metadata)
+
+            innerSource.queryBindings.mockReturnValueOnce(originalBindingStream);
+
+
+            const ImplicitBindingStream = fromArray(implicitBinding);
+
+            const implicitMetadata: MetadataBindings = {
+                variables: [
+                    {
+                        variable: DF.variable('a'),
+                        canBeUndef: true
+                    }
+                ],
+                canBeUndef: true,
+                cardinality: { type: 'estimate', value: 12 },
+                state: new MetadataValidationState(),
+            };
+            ImplicitBindingStream.setProperty("metadata", implicitMetadata);
+            (<any>querySource).implicitQuadQuerySource.queryBindings.mockReturnValueOnce(ImplicitBindingStream);
+
+            const resp = querySource!.queryBindings(operation, context);
+            await expect(new Promise(resolve => resp.getProperty('metadata', resolve))).resolves
+                .toEqual({
+                    ...implicitMetadata,
+                    cardinality: { ...implicitMetadata.cardinality, value: 17 },
+                    state: expect.any(MetadataValidationState)
+                })
+            const bindings = await resp.toArray();
+
+            expect(new Set(bindings)).toStrictEqual(new Set(expectedBindings));
+        });
+
+    })
 });

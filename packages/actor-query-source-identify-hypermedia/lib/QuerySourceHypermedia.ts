@@ -254,8 +254,6 @@ export class QuerySourceHypermedia implements IQuerySource {
             store: aggregatedStore,
             source: aggregatedSource
           };
-
-          aggregatedSource;
           const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
             context,
             metadata: aggregatedStoreReasoningMetadata,
