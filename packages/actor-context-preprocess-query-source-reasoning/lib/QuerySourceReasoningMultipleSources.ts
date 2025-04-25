@@ -12,6 +12,7 @@ import { AbstractQuerySourceReasoning } from './QuerySourceReasoning';
 import { ActorContextPreprocessQuerySourceReasoning } from './ActorContextPreprocessQuerySourceReasoning';
 import { IClosingCondition } from './util';
 import { EventEmitter } from 'events';
+import { error, result, type Result } from "result-interface";
 
 export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReasoning {
 
@@ -35,7 +36,6 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
     }
 
     public override close(): void {
-        console.log(`entering closing counter ${this.importCounter}`);
         if (this.importCounter === 0) {
             this.implicitQuadStore.end();
         } else {
@@ -50,15 +50,15 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
         this.isclose = true;
     }
 
-    public addSource(quadStream: AsyncIterator<RDF.Quad>, url: string, context: IActionContext): Error | undefined {
+    public addSource(quadStream: AsyncIterator<RDF.Quad>, url: string, context: IActionContext): Result<undefined, Error>  {
         this.importCounter += 1;
         if (this.isclose) {
-            return new Error("The query source is closed");
+            return error(new Error("the query source is closed"));
         }
 
         let rules: ScopedRules | undefined = context.get(KeyReasoning.rules);
         if (rules === undefined) {
-            return new Error('the "KeyReasoning" is not defined in the context');
+            return error(new Error('the "KeyReasoning" is not defined in the context'));
         }
         const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
         const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, quadStream);
@@ -72,6 +72,7 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
             }
         });
 
+        return result(undefined);
     }
 
     public override toString(): string {

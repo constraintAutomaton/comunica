@@ -37,7 +37,12 @@
   ],
   "dependencies": {
     "@comunica/core": "^4.0.2",
-    "@comunica/bus-context-preprocess": "^4.0.2"
+    "@comunica/bus-context-preprocess": "^4.0.2",
+    "rdf-streaming-store": "^2.1.1",
+    "result-interface": "^2.3.0"
+  },
+  "devDependencies": {
+    "streamify-array":"^2.0.0"
   },
   "scripts": {
     "build": "yarn run build:ts && yarn run build:components",

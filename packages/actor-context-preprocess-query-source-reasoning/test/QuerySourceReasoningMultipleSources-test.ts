@@ -2,21 +2,30 @@ import { QuerySourceReasoningMultipleSources } from '../lib/QuerySourceReasoning
 import { IClosingCondition, IRuleGraph, Operator, SameAsRule } from "../lib";
 import type * as RDF from '@rdfjs/types';
 import { DataFactory } from "rdf-data-factory";
-import { fromArray, AsyncIterator, WrappingIterator } from "asynciterator";
+import { fromArray, AsyncIterator, WrappingIterator, ArrayIterator } from "asynciterator";
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
-import { ActionContext } from "@comunica/core";
+import { ActionContext, Bus } from "@comunica/core";
 import { KeyReasoning, KeysInitQuery } from "@comunica/context-entries";
-import { Algebra, Factory } from 'sparqlalgebrajs';
+import { Factory, translate, toSparqlJs } from 'sparqlalgebrajs';
 import { AbstractQuerySourceReasoning } from '../lib/QuerySourceReasoning';
 import { IActionRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { StreamingStore } from 'rdf-streaming-store';
 import "jest-rdf";
 import { MetadataBindings } from '@comunica/types';
 import { MetadataValidationState } from '@comunica/utils-metadata';
+import { ActorRdfMetadataAccumulateCardinality } from '@comunica/actor-rdf-metadata-accumulate-cardinality';
+import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
+import { error, isResult } from 'result-interface';
+import '@comunica/utils-jest';
 
 const DF = new DataFactory();
 const BF = new BindingsFactory(DF);
 const AF = new Factory();
+
+const ACCUMULATE_CARDINALITY = new ActorRdfMetadataAccumulateCardinality({
+    name: "",
+    bus: new Bus({ name: 'bus' })
+});
 
 
 describe("QuerySourceReasoningMultipleSources", () => {
@@ -204,34 +213,7 @@ describe("QuerySourceReasoningMultipleSources", () => {
             const sourceId = undefined;
             const mediatorRdfMetadataAccumulate: any = <any>{
                 async mediate(action: IActionRdfMetadataAccumulate) {
-                    if (action.mode === 'initialize') {
-                        return { metadata: { cardinality: { type: 'exact', value: 0 } } };
-                    }
-
-                    const metadata = { ...action.accumulatedMetadata };
-                    const subMetadata = action.appendingMetadata;
-                    if (!subMetadata.cardinality || !Number.isFinite(subMetadata.cardinality.value)) {
-                        // We're already at infinite, so ignore any later metadata
-                        metadata.cardinality.type = 'estimate';
-                        metadata.cardinality.value = Number.POSITIVE_INFINITY;
-                    } else {
-                        if (subMetadata.cardinality.type === 'estimate') {
-                            metadata.cardinality.type = 'estimate';
-                        }
-                        metadata.cardinality.value += subMetadata.cardinality.value;
-                    }
-                    if (metadata.requestTime ?? subMetadata.requestTime) {
-                        metadata.requestTime = metadata.requestTime ?? 0;
-                        subMetadata.requestTime = subMetadata.requestTime ?? 0;
-                        metadata.requestTime += subMetadata.requestTime;
-                    }
-                    if (metadata.pageSize ?? subMetadata.pageSize) {
-                        metadata.pageSize = metadata.pageSize ?? 0;
-                        subMetadata.pageSize = subMetadata.pageSize ?? 0;
-                        metadata.pageSize += subMetadata.pageSize;
-                    }
-
-                    return { metadata };
+                    return await ACCUMULATE_CARDINALITY.run(action);
                 },
             };
             const context = new ActionContext({
@@ -262,7 +244,7 @@ describe("QuerySourceReasoningMultipleSources", () => {
             const context = new ActionContext({
                 [KeyReasoning.rules.name]: new Map()
             });
-            expect(querySource?.addSource(quadStream, "foo", context)).toBeUndefined();
+            expect(isResult(querySource!.addSource(quadStream, "foo", context))).toBe(true);
 
             const resp = (<StreamingStore>(<any>querySource).implicitQuadStore).match(null, null, null, null);
 
@@ -331,7 +313,7 @@ describe("QuerySourceReasoningMultipleSources", () => {
                     resolve(undefined);
                 });
 
-                expect(querySource?.addSource(quadStream, "foo", context)).toBeUndefined();
+                expect(isResult(querySource!.addSource(quadStream, "foo", context))).toBe(true);
 
                 querySource?.close();
             });
@@ -344,13 +326,13 @@ describe("QuerySourceReasoningMultipleSources", () => {
             const context = new ActionContext({
                 [KeyReasoning.rules.name]: new Map()
             });
-            expect(querySource?.addSource(quadStream, "foo", context)).toStrictEqual(new Error("The query source is closed"));
+            expect(querySource!.addSource(quadStream, "foo", context)).toStrictEqual(error(new Error("the query source is closed")));
         });
 
         it("should return an error if the rule key is not in the context", async () => {
             const quadStream: AsyncIterator<RDF.Quad> = fromArray(new Array<RDF.Quad>());
             const context = new ActionContext();
-            expect(querySource?.addSource(quadStream, "foo", context)).toStrictEqual(new Error('the "KeyReasoning" is not defined in the context'));
+            expect(querySource?.addSource(quadStream, "foo", context)).toStrictEqual(error(new Error('the "KeyReasoning" is not defined in the context')));
         });
     });
 
@@ -442,7 +424,12 @@ describe("QuerySourceReasoningMultipleSources", () => {
     describe("queryBindings", () => {
         let querySource: QuerySourceReasoningMultipleSources | undefined;
         let innerSource: any;
-        let innerStore: StreamingStore = new StreamingStore()
+        let innerStore: StreamingStore = new StreamingStore();
+        const mediatorRdfMetadataAccumulate: any = <any>{
+            async mediate(action: IActionRdfMetadataAccumulate) {
+                return await ACCUMULATE_CARDINALITY.run(action);
+            },
+        };
 
         beforeEach(() => {
             innerStore = new StreamingStore();
@@ -466,38 +453,6 @@ describe("QuerySourceReasoningMultipleSources", () => {
                 ]
             };
             const sourceId = undefined;
-            const mediatorRdfMetadataAccumulate: any = <any>{
-                async mediate(action: IActionRdfMetadataAccumulate) {
-                    if (action.mode === 'initialize') {
-                        return { metadata: { cardinality: { type: 'exact', value: 0 } } };
-                    }
-
-                    const metadata = { ...action.accumulatedMetadata };
-                    const subMetadata = action.appendingMetadata;
-                    if (!subMetadata.cardinality || !Number.isFinite(subMetadata.cardinality.value)) {
-                        // We're already at infinite, so ignore any later metadata
-                        metadata.cardinality.type = 'estimate';
-                        metadata.cardinality.value = Number.POSITIVE_INFINITY;
-                    } else {
-                        if (subMetadata.cardinality.type === 'estimate') {
-                            metadata.cardinality.type = 'estimate';
-                        }
-                        metadata.cardinality.value += subMetadata.cardinality.value;
-                    }
-                    if (metadata.requestTime ?? subMetadata.requestTime) {
-                        metadata.requestTime = metadata.requestTime ?? 0;
-                        subMetadata.requestTime = subMetadata.requestTime ?? 0;
-                        metadata.requestTime += subMetadata.requestTime;
-                    }
-                    if (metadata.pageSize ?? subMetadata.pageSize) {
-                        metadata.pageSize = metadata.pageSize ?? 0;
-                        subMetadata.pageSize = subMetadata.pageSize ?? 0;
-                        metadata.pageSize += subMetadata.pageSize;
-                    }
-
-                    return { metadata };
-                },
-            };
             const context = new ActionContext({
                 [KeysInitQuery.dataFactory.name]: DF,
             });
@@ -587,5 +542,64 @@ describe("QuerySourceReasoningMultipleSources", () => {
             expect(new Set(bindings)).toStrictEqual(new Set(expectedBindings));
         });
 
+        it('should return a quad stream when new quads are added in to store', async () => {
+            const sourceId = undefined;
+            const rules: IRuleGraph = {
+                rules: [
+                    new SameAsRule(
+                        DF.namedNode("p"),
+                        DF.namedNode("http://example.com/o")
+                    )
+                ]
+            };
+            const rulesQuad = [DF.quad(DF.namedNode("p"), DF.namedNode(Operator.SAME_AS), DF.namedNode("o"))];
+            const context = new ActionContext({
+                [KeysInitQuery.dataFactory.name]: DF,
+                [KeyReasoning.rules.name]: new Map([["*", rulesQuad]])
+            });
+            const initialQuads = [
+                DF.quad(DF.blankNode(), DF.namedNode("foo"), DF.namedNode("bar")),
+                DF.quad(DF.blankNode(), DF.namedNode("foo"), DF.blankNode()),
+                DF.quad(DF.namedNode("1"), DF.namedNode("p"), DF.namedNode("o1"))
+            ];
+            const addedQuads = [
+                DF.quad(DF.blankNode(), DF.namedNode("foo1"), DF.blankNode()),
+                DF.quad(DF.namedNode("2"), DF.namedNode("p"), DF.namedNode("o2")),
+                DF.quad(DF.namedNode("3"), DF.namedNode("http://example.com/o"), DF.namedNode("o3"))
+            ];
+
+            innerStore = new StreamingStore();
+            innerStore.import(new ArrayIterator(initialQuads, { autoStart: false }));
+
+            const closingEvent: IClosingCondition = {
+                closeHint: (callback: () => void) => {
+                    innerStore.addEndListener(callback);
+                }
+            };
+            innerSource = new QuerySourceRdfJs(innerStore, DF, BF);
+
+            const operation = AF.createPattern(DF.variable("s"), DF.namedNode("http://example.com/o"), DF.variable("o"));
+
+            const querySource = new QuerySourceReasoningMultipleSources(
+                innerSource,
+                sourceId,
+                rules,
+                BF,
+                mediatorRdfMetadataAccumulate,
+                context,
+                closingEvent);
+
+            const res = querySource?.queryBindings(operation, context);
+            innerStore.import(new ArrayIterator(addedQuads, { autoStart: false }));
+            expect(isResult(querySource.addSource(new ArrayIterator(addedQuads, { autoStart: false }), "", context))).toBe(true);
+            innerStore.end();
+
+            const expectedBinding = [
+                BF.fromRecord({ s: DF.namedNode("3"), o: DF.namedNode("o3") }),
+                BF.fromRecord({ s: DF.namedNode("1"), o: DF.namedNode("o1") }),
+                BF.fromRecord({ s: DF.namedNode("2"), o: DF.namedNode("o2") }),
+            ];
+            expect(res).toEqualBindingsStream(expectedBinding);
+        });
     })
 });

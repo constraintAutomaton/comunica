@@ -35,7 +35,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
 
   protected readonly selectorShape: FragmentSelectorShape;
 
-  protected readonly implicitQuadStore = new StreamingStore();
+  protected readonly implicitQuadStore:StreamingStore = new StreamingStore();
   protected readonly implicitQuadQuerySource: IQuerySource;
 
   public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;

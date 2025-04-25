@@ -62,10 +62,7 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
       const closingCondition: IClosingCondition = {
         closeHint: (callback: () => void) => {
           const aggregatedStore = <IAggregatedStore>metadata["reasoningAggregatedStore"]["store"];
-          const it = aggregatedStore.match(null, null, null, null);
-          it.on("end", () => {
-            callback();
-          })
+          aggregatedStore.addEndListener(callback);
         }
       }
       const source = new QuerySourceReasoningMultipleSources(

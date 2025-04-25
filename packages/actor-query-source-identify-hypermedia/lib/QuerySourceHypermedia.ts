@@ -6,7 +6,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeyReasoning,KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -17,7 +17,6 @@ import type {
   IQuerySource,
   MetadataBindings,
   ILink,
-  QuerySourceReference,
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
@@ -31,8 +30,8 @@ import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
 import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
-import { ActorContextPreprocessQuerySourceReasoning, isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
-import { ArrayIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
+import { isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import { wrap as wrapAsyncIterator } from 'asynciterator';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
