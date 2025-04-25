@@ -166,9 +166,9 @@ export class QuerySourceRdfJs implements IQuerySource {
           QuerySourceRdfJs.nullifyVariables(operation.object, quotedTripleFiltering),
           QuerySourceRdfJs.nullifyVariables(operation.graph, quotedTripleFiltering),
         );
-        matches.on('error', (error)=>{
-          console.log(error)
-          reject(error)
+        matches.on('error', (error) => {
+          console.log(error);
+          reject(error);
         });
         matches.on('end', () => resolve(i));
         matches.on('data', () => i++);

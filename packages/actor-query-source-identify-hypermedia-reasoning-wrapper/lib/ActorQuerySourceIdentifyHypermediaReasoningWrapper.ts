@@ -1,15 +1,17 @@
-import { ActorContextPreprocessQuerySourceReasoning, IClosingCondition, ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import type { IClosingCondition, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import { ActorContextPreprocessQuerySourceReasoning } from '@comunica/actor-context-preprocess-query-source-reasoning';
 import { QuerySourceReasoning } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoning';
 import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { getSourceId } from '@comunica/actor-context-preprocess-query-source-skolemize';
-import { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
-import { ActorQuerySourceIdentifyHypermedia, IActionQuerySourceIdentifyHypermedia, IActorQuerySourceIdentifyHypermediaOutput, IActorQuerySourceIdentifyHypermediaArgs, IActorQuerySourceIdentifyHypermediaTest, MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
-import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
+import type { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
+import type { IActionQuerySourceIdentifyHypermedia, IActorQuerySourceIdentifyHypermediaOutput, IActorQuerySourceIdentifyHypermediaArgs, IActorQuerySourceIdentifyHypermediaTest, MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
+import { ActorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
+import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
-import { TestResult, IActorArgs, IActorTest, passTest, failTest } from '@comunica/core';
-import { IAggregatedStore, IQuerySource, QuerySourceReference } from '@comunica/types';
+import type { TestResult } from '@comunica/core';
+import { passTest, failTest } from '@comunica/core';
+import type { IAggregatedStore, IQuerySource, QuerySourceReference } from '@comunica/types';
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
-import type * as RDF from '@rdfjs/types';
 
 /**
  * A comunica Reasoning Wrapper Query Source Identify Hypermedia Actor.
@@ -20,9 +22,8 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
   public readonly mediatorMergeBindingsContext: MediatorMergeBindingsContext;
 
   public constructor(args: IActorQuerySourceIdentifyHypermediaReasoningWrapper) {
-    super(args, "reasoningWrapper");
+    super(args, 'reasoningWrapper');
   }
-
 
   public async testMetadata(
     action: IActionQuerySourceIdentifyHypermedia,
@@ -33,7 +34,7 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
       return passTest({ filterFactor: 0 });
     }
     if (reasoningSourceMap.has(action.url)) {
-      return failTest("query source already wrapped");
+      return failTest('query source already wrapped');
     }
 
     return passTest({ filterFactor: 0 });
@@ -55,16 +56,16 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
     const dataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
 
     const metadata = action.metadata;
-    if (metadata["reasoningAggregatedStore"] !== undefined) {
-      const innerSource = <IQuerySource>metadata["reasoningAggregatedStore"]["source"];
+    if (metadata.reasoningAggregatedStore !== undefined) {
+      const innerSource = <IQuerySource>metadata.reasoningAggregatedStore.source;
 
       const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, action.url);
       const closingCondition: IClosingCondition = {
         closeHint: (callback: () => void) => {
-          const aggregatedStore = <IAggregatedStore>metadata["reasoningAggregatedStore"]["store"];
+          const aggregatedStore = <IAggregatedStore>metadata.reasoningAggregatedStore.store;
           aggregatedStore.addEndListener(callback);
-        }
-      }
+        },
+      };
       const source = new QuerySourceReasoningMultipleSources(
         innerSource,
         getSourceId(sourceIds, innerSource),
@@ -72,32 +73,29 @@ export class ActorQuerySourceIdentifyHypermediaReasoningWrapper extends ActorQue
         await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
         this.mediatorRdfMetadataAccumulate,
         action.context,
-        closingCondition
+        closingCondition,
       );
       return {
         source,
-      }
-    } else {
-      const innerSource = await this.mediatorQuerySourceIdentifyHypermedia.mediate(action);
-
-      const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, innerSource.source.referenceValue);
-
-      const source = new QuerySourceReasoning(
-        innerSource.source,
-        getSourceId(sourceIds, innerSource.source),
-        effectiveRule,
-        await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
-        this.mediatorRdfMetadataAccumulate,
-        action.context,
-      );
-
-      return {
-        source,
-        dataset: innerSource.dataset
-      }
+      };
     }
+    const innerSource = await this.mediatorQuerySourceIdentifyHypermedia.mediate(action);
 
+    const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, innerSource.source.referenceValue);
 
+    const source = new QuerySourceReasoning(
+      innerSource.source,
+      getSourceId(sourceIds, innerSource.source),
+      effectiveRule,
+      await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+      this.mediatorRdfMetadataAccumulate,
+      action.context,
+    );
+
+    return {
+      source,
+      dataset: innerSource.dataset,
+    };
   }
 }
 

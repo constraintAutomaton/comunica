@@ -1,5 +1,8 @@
+import { BindingsToQuadsIterator } from '@comunica/actor-query-operation-construct';
+import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union';
+import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
+import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
 import { KeysInitQuery } from '@comunica/context-entries';
-import { type BindingsFactory } from '@comunica/utils-bindings-factory';
 import type {
   BindingsStream,
   FragmentSelectorShape,
@@ -7,40 +10,37 @@ import type {
   IQueryBindingsOptions,
   IQuerySource,
 } from '@comunica/types';
+import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator, UnionIterator } from 'asynciterator';
+import type { AsyncIterator } from 'asynciterator';
+import { UnionIterator } from 'asynciterator';
+import { StreamingStore } from 'rdf-streaming-store';
 import type { Algebra } from 'sparqlalgebrajs';
 import { Factory } from 'sparqlalgebrajs';
-import { IRuleGraph } from './Rules';
-import { BindingsToQuadsIterator } from '@comunica/actor-query-operation-construct';
-import { StreamingStore } from 'rdf-streaming-store';
-import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
-import { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
-import { ActorQueryOperationUnion } from '@comunica/actor-query-operation-union';
-
+import type { IRuleGraph } from './Rules';
 
 const AF = new Factory();
 
 export abstract class AbstractQuerySourceReasoning implements IQuerySource {
   /**
- * The query source to wrap over.
- */
+   * The query source to wrap over.
+   */
   protected readonly innerSource: IQuerySource;
   /**
    * ID of the inner source, see KeysQuerySourceIdentify.sourceIds.
    */
   public readonly sourceId?: string;
 
-  public readonly rulesString: string = "";
+  public readonly rulesString: string = '';
 
   protected readonly selectorShape: FragmentSelectorShape;
 
-  protected readonly implicitQuadStore:StreamingStore = new StreamingStore();
+  protected readonly implicitQuadStore: StreamingStore = new StreamingStore();
   protected readonly implicitQuadQuerySource: IQuerySource;
 
   public readonly mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate;
 
-  protected isclose: boolean = false;
+  protected isclose = false;
 
   public constructor(
     innerSource: IQuerySource,
@@ -49,7 +49,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     bindingsFactory: BindingsFactory,
     mediatorRdfMetadataAccumulate: MediatorRdfMetadataAccumulate,
     context: IActionContext,
-    autoClose: boolean
+    autoClose: boolean,
   ) {
     this.innerSource = innerSource;
     this.sourceId = sourceId;
@@ -63,15 +63,14 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     );
 
     for (const rule of ruleGraph.rules) {
-      this.rulesString += "/" + rule.toString();
+      this.rulesString += `/${rule.toString()}`;
     }
     const queryAllBindings = this.innerSource.queryBindings(getAllQuadsOperation, context);
-    const quadStream = queryAllBindings.map(bindings => {
-      return BindingsToQuadsIterator.bindQuad(bindings, dataFactory.quad(
-        dataFactory.variable('s'),
-        dataFactory.variable('p'),
-        dataFactory.variable('o')))!
-    });
+    const quadStream = queryAllBindings.map(bindings => BindingsToQuadsIterator.bindQuad(bindings, dataFactory.quad(
+      dataFactory.variable('s'),
+      dataFactory.variable('p'),
+      dataFactory.variable('o'),
+    ))!);
 
     const implicitQuads = QuerySourceReasoning.generateImplicitQuads(ruleGraph, quadStream);
 
@@ -106,6 +105,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
       });
     }
   }
+
   /**
    * Generate the implicit quads based a provided rules and a quad stream
    * @param {IRuleGraph} ruleGraph - Rules to be applied over the quad stream
@@ -125,6 +125,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     });
     return implicitQuadsStream;
   }
+
   /**
    * Apply a chain of reasoning over a single quad
    * @param {ruleGraph} ruleGraph - Rules to be applied
@@ -144,7 +145,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
         }
       }
       currentQuad = queueQuads.pop();
-    } while (currentQuad !== undefined)
+    } while (currentQuad !== undefined);
 
     return implicitQuads;
   }
@@ -168,7 +169,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     const bindingStreamOriginal = this.innerSource.queryBindings(operation, context, options);
     const implicitBindingStream = this.implicitQuadQuerySource.queryBindings(operation, context, options);
 
-    const unions = new UnionIterator([bindingStreamOriginal, implicitBindingStream], { autoStart: false });
+    const unions = new UnionIterator([ bindingStreamOriginal, implicitBindingStream ], { autoStart: false });
 
     if (!unions.getProperty('metadata')) {
       this.setMetadata(unions, bindingStreamOriginal, implicitBindingStream, context)
@@ -209,20 +210,18 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     implicitBindingStream: BindingsStream,
     context: IActionContext,
   ): Promise<void> {
-    originalBindingStream.getProperty("metadata", (originalMetadata: any) => {
-      implicitBindingStream.getProperty("metadata", async (implicitMetadata: any) => {
-        const metadata = await ActorQueryOperationUnion.unionMetadata([originalMetadata, implicitMetadata], true, context, this.mediatorRdfMetadataAccumulate)
+    originalBindingStream.getProperty('metadata', (originalMetadata: any) => {
+      implicitBindingStream.getProperty('metadata', async(implicitMetadata: any) => {
+        const metadata = await ActorQueryOperationUnion.unionMetadata([ originalMetadata, implicitMetadata ], true, context, this.mediatorRdfMetadataAccumulate);
         it.setProperty('metadata', metadata);
       });
     });
   }
 
-
   abstract toString(): string;
 }
 
 export class QuerySourceReasoning extends AbstractQuerySourceReasoning {
-
   public constructor(
     innerSource: IQuerySource,
     sourceId: string | undefined,

@@ -1,3 +1,5 @@
+import { isQuerySourceReasoning, isQuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import type { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import type { IActorDereferenceRdfOutput, MediatorDereferenceRdf } from '@comunica/bus-dereference-rdf';
 import type { MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
@@ -20,8 +22,7 @@ import type {
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator } from 'asynciterator';
-import { TransformIterator } from 'asynciterator';
+import { AsyncIterator, TransformIterator, wrap as wrapAsyncIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
 import type { Algebra } from 'sparqlalgebrajs';
@@ -29,9 +30,6 @@ import { Factory } from 'sparqlalgebrajs';
 import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
-import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
-import { isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
-import { wrap as wrapAsyncIterator } from 'asynciterator';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -137,7 +135,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   }
 
   public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
-    return new TransformIterator(async () => {
+    return new TransformIterator(async() => {
       const source = await this.getSourceCached({ url: this.firstUrl }, {}, context, this.getAggregateStore(context));
       return source.source.queryQuads(operation, context);
     });
@@ -244,21 +242,18 @@ export class QuerySourceHypermedia implements IQuerySource {
     });
 
     if (isQuerySourceReasoning(source)) {
-      if (this.aggregatedStoreQueryStoreReasoning !== undefined) {
-        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
-      } else {
+      if (this.aggregatedStoreQueryStoreReasoning === undefined) {
         const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
         if (aggregatedStore) {
-
           const aggregatedSource = new QuerySourceRdfJs(
             aggregatedStore,
             context.getSafe(KeysInitQuery.dataFactory),
             this.bindingsFactory,
           );
           const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
-          aggregatedStoreReasoningMetadata["reasoningAggregatedStore"] = {
+          aggregatedStoreReasoningMetadata.reasoningAggregatedStore = {
             store: aggregatedStore,
-            source: aggregatedSource
+            source: aggregatedSource,
           };
           const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
             context,
@@ -269,10 +264,11 @@ export class QuerySourceHypermedia implements IQuerySource {
           if (isQuerySourceReasoningMultipleSources(source)) {
             this.aggregatedStoreQueryStoreReasoning = source;
           } else {
-            throw new Error("was not able to generate a reasoning source");
+            throw new Error('was not able to generate a reasoning source');
           }
         }
-
+      } else {
+        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
       }
     }
 
@@ -321,7 +317,7 @@ export class QuerySourceHypermedia implements IQuerySource {
         if (!aggregatedStore) {
           aggregatedStore = new StreamingStoreMetadata(
             undefined,
-            async (accumulatedMetadata, appendingMetadata) => <MetadataBindings>
+            async(accumulatedMetadata, appendingMetadata) => <MetadataBindings>
               (await this.mediators.mediatorMetadataAccumulate.mediate({
                 mode: 'append',
                 accumulatedMetadata,

@@ -8,7 +8,6 @@ export abstract class Rule {
   public readonly operator: Operator;
   public readonly conclusion: Conclusion;
 
-
   public constructor(premise: Premise, conclusion: Conclusion) {
     this.premise = premise;
     this.conclusion = conclusion;
@@ -23,7 +22,6 @@ export abstract class Rule {
 
 export class SameAsRule extends Rule {
   public override readonly operator: Operator = Operator.SAME_AS;
-
 
   public forwardChaining(quad: RDF.Quad): RDF.Quad | undefined {
     if (quad.subject.equals(this.premise) && this.conclusion.termType !== 'Literal') {
