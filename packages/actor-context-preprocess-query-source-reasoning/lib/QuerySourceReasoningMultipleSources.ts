@@ -8,7 +8,7 @@ import type {
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 import type { AsyncIterator } from 'asynciterator';
-import { error, result, type Result } from 'result-interface';
+import { error, type Result } from 'result-interface';
 import { ActorContextPreprocessQuerySourceReasoning } from './ActorContextPreprocessQuerySourceReasoning';
 import { AbstractQuerySourceReasoning } from './QuerySourceReasoning';
 import type { IRuleGraph, ScopedRules } from './Rules';

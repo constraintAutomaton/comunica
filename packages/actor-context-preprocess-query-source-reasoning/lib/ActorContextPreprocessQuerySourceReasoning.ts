@@ -26,7 +26,7 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
 
   public readonly queryEngine: QueryEngineBase;
 
-  public constructor(args: IActorContextPreprocessQuerySourceReasoning) {
+  public constructor(args: IActorContextPreprocessQuerySourceReasoningArg) {
     super(args);
   }
 
@@ -36,31 +36,32 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
 
   public static selectCorrespondingRuleSet(rules: ScopedRules, referenceValue: string | RDF.Source): IRuleGraph {
     const ruleForAll: IRuleGraph = rules.get('*') === undefined ?
-        { rules: []} :
+      { rules: [] } :
       parseRules(rules.get('*')!);
 
     if (typeof referenceValue === 'string') {
       const correspondingRules: IRuleGraph = ruleForAll;
 
-      for (const [ domain, ruleSet ] of rules) {
+      for (const [domain, ruleSet] of rules) {
         if (typeof domain === 'string') {
           const template = new UriTemplate(domain);
           if (template.match(referenceValue) !== null) {
             const ruleGraph = parseRules(ruleSet);
-            correspondingRules.rules = [ ...correspondingRules.rules, ...ruleGraph.rules ];
+            correspondingRules.rules = [...correspondingRules.rules, ...ruleGraph.rules];
           }
         }
       }
+      return correspondingRules;
     } else {
       const rawRules = rules.get(referenceValue);
       if (rawRules !== undefined) {
         const localStoreRule: IRuleGraph = {
-          rules: ruleForAll.rules = [ ...ruleForAll.rules, ...parseRules(rawRules).rules ],
+          rules: ruleForAll.rules = [...ruleForAll.rules, ...parseRules(rawRules).rules],
         };
         return localStoreRule;
       }
+      return ruleForAll;
     }
-    return ruleForAll;
   }
 
   public async run(action: IActionContextPreprocess): Promise<IActorContextPreprocessOutput> {
@@ -75,17 +76,14 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
       let sources: IQuerySourceWrapper[] = action.context.getSafe(KeysQueryOperation.querySources);
       let rules: ScopedRules | undefined = action.context.get(KeyReasoning.rules);
       if (rules === undefined) {
-        action.context = action.context.set(KeyReasoning.rules, new Map());
-        rules = action.context.getSafe(KeyReasoning.rules);
+        throw new Error(`${KeyReasoning.rules.name} is not defined in the context`)
       }
       const dataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
 
-      sources = await Promise.all(sources.map(async(sourceWrapper) => {
+      sources = await Promise.all(sources.map(async (sourceWrapper) => {
         if (sourceWrapper.source.toString().startsWith('QuerySourceReasoning')) {
           return sourceWrapper;
         }
-        const store = new StreamingStore();
-        store.end();
 
         const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, sourceWrapper.source.referenceValue);
 
@@ -110,7 +108,7 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
   }
 }
 
-export interface IActorContextPreprocessQuerySourceReasoning
+export interface IActorContextPreprocessQuerySourceReasoningArg
   extends IActorArgs<IActionContextPreprocess, IActorTest, IActorContextPreprocessOutput> {
   /**
    * A mediator for creating binding context merge handlers
