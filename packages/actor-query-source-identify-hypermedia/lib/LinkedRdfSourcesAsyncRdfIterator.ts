@@ -1,5 +1,10 @@
-import type { ILinkQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysStatistics } from '@comunica/context-entries';
+import type { ILinkQueue } from "@comunica/bus-rdf-resolve-hypermedia-links-queue";
+import {
+  KeysRdfJoin,
+  KeysStatistics,
+  ReqJoinFilters,
+  reqOperationToString,
+} from "@comunica/context-entries";
 import type {
   ILink,
   IQuerySource,
@@ -7,12 +12,12 @@ import type {
   MetadataBindings,
   IQueryBindingsOptions,
   IStatisticBase,
-} from '@comunica/types';
-import { MetadataValidationState } from '@comunica/utils-metadata';
-import type * as RDF from '@rdfjs/types';
-import type { AsyncIterator, BufferedIteratorOptions } from 'asynciterator';
-import { BufferedIterator } from 'asynciterator';
-import type { Algebra } from 'sparqlalgebrajs';
+} from "@comunica/types";
+import { MetadataValidationState } from "@comunica/utils-metadata";
+import type * as RDF from "@rdfjs/types";
+import type { AsyncIterator, BufferedIteratorOptions } from "asynciterator";
+import { BufferedIterator } from "asynciterator";
+import type { Algebra } from "sparqlalgebrajs";
 
 export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<RDF.Bindings> {
   protected readonly operation: Algebra.Operation;
@@ -29,7 +34,8 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
   private iteratorsPendingCreation = 0;
   private iteratorsPendingTermination = 0;
   // eslint-disable-next-line unicorn/no-useless-undefined
-  private accumulatedMetadata: Promise<MetadataBindings | undefined> = Promise.resolve(undefined);
+  private accumulatedMetadata: Promise<MetadataBindings | undefined> =
+    Promise.resolve(undefined);
   private preflightMetadata: Promise<MetadataBindings> | undefined;
 
   public constructor(
@@ -40,7 +46,7 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
     firstUrl: string,
     maxIterators: number,
     sourceStateGetter: SourceStateGetter,
-    options?: BufferedIteratorOptions,
+    options?: BufferedIteratorOptions
   ) {
     super({ autoStart: false, ...options });
     this._reading = false;
@@ -53,7 +59,9 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
     this.sourceStateGetter = sourceStateGetter;
 
     if (this.maxIterators <= 0) {
-      throw new Error(`LinkedRdfSourcesAsyncRdfIterator.maxIterators must be larger than zero, but got ${this.maxIterators}`);
+      throw new Error(
+        `LinkedRdfSourcesAsyncRdfIterator.maxIterators must be larger than zero, but got ${this.maxIterators}`
+      );
     }
   }
 
@@ -66,8 +74,11 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
     }
   }
 
-  public override getProperty<P>(propertyName: string, callback?: (value: P) => void): P | undefined {
-    if (propertyName === 'metadata' && !this.started) {
+  public override getProperty<P>(
+    propertyName: string,
+    callback?: (value: P) => void
+  ): P | undefined {
+    if (propertyName === "metadata" && !this.started) {
       // If the iterator has not started yet, forcefully fetch the metadata from the source without starting the
       // iterator. This way, we keep the iterator lazy.
       if (!this.preflightMetadata) {
@@ -75,30 +86,40 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
           this.sourceStateGetter({ url: this.firstUrl }, {})
             .then((sourceState) => {
               // Don't pass query options, as we don't want to consume any passed iterators
-              const bindingsStream = sourceState.source.queryBindings(this.operation, this.context);
-              bindingsStream.getProperty('metadata', (metadata: MetadataBindings) => {
-                metadata.state = new MetadataValidationState();
-                bindingsStream.destroy();
-                this.accumulateMetadata(sourceState.metadata, metadata)
-                  .then((accumulatedMetadata) => {
-                    // Also merge fields that were not explicitly accumulated
-                    const returnMetadata = { ...sourceState.metadata, ...metadata, ...accumulatedMetadata };
-                    resolve(returnMetadata);
-                  })
-                  .catch(() => {
-                    resolve({
-                      ...sourceState.metadata,
-                      state: new MetadataValidationState(),
+              const bindingsStream = sourceState.source.queryBindings(
+                this.operation,
+                this.context
+              );
+              bindingsStream.getProperty(
+                "metadata",
+                (metadata: MetadataBindings) => {
+                  metadata.state = new MetadataValidationState();
+                  bindingsStream.destroy();
+                  this.accumulateMetadata(sourceState.metadata, metadata)
+                    .then((accumulatedMetadata) => {
+                      // Also merge fields that were not explicitly accumulated
+                      const returnMetadata = {
+                        ...sourceState.metadata,
+                        ...metadata,
+                        ...accumulatedMetadata,
+                      };
+                      resolve(returnMetadata);
+                    })
+                    .catch(() => {
+                      resolve({
+                        ...sourceState.metadata,
+                        state: new MetadataValidationState(),
+                      });
                     });
-                  });
-              });
+                }
+              );
             })
             .catch(reject);
         });
       }
       this.preflightMetadata
-        .then(metadata => this.setProperty('metadata', metadata))
-        .catch(e => this.emit('error', e));
+        .then((metadata) => this.setProperty("metadata", metadata))
+        .catch((e) => this.emit("error", e));
     }
     return super.getProperty(propertyName, callback);
   }
@@ -122,7 +143,10 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
    * Determine the links to be followed from the current source given its metadata.
    * @param metadata The metadata of a source.
    */
-  protected abstract getSourceLinks(metadata: Record<string, any>, startSource: ISourceState): Promise<ILink[]>;
+  protected abstract getSourceLinks(
+    metadata: Record<string, any>,
+    startSource: ISourceState
+  ): Promise<ILink[]>;
 
   public override _read(count: number, done: () => void): void {
     if (this.started) {
@@ -147,11 +171,12 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
         // We can safely ignore skip catching the error, since we are guaranteed to have
         // successfully got the source for this.firstUrl before.
         // eslint-disable-next-line ts/no-floating-promises
-        this.sourceStateGetter({ url: this.firstUrl }, {})
-          .then((sourceState) => {
+        this.sourceStateGetter({ url: this.firstUrl }, {}).then(
+          (sourceState) => {
             this.startIteratorsForNextUrls(sourceState.handledDatasets, false);
             done();
-          });
+          }
+        );
       } else {
         done();
       }
@@ -166,13 +191,18 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
           done();
         })
         // Destroy should be async because it can be called before it is listened to
-        .catch(error => setTimeout(() => this.destroy(error)));
+        .catch((error) => setTimeout(() => this.destroy(error)));
     }
   }
 
   protected canStartNewIterator(): boolean {
-    return (this.currentIterators.length + this.iteratorsPendingCreation + this.iteratorsPendingTermination) <
-      this.maxIterators && (!this.canStartNewIteratorConsiderReadable() || !this.readable);
+    return (
+      this.currentIterators.length +
+        this.iteratorsPendingCreation +
+        this.iteratorsPendingTermination <
+        this.maxIterators &&
+      (!this.canStartNewIteratorConsiderReadable() || !this.readable)
+    );
   }
 
   protected canStartNewIteratorConsiderReadable(): boolean {
@@ -180,7 +210,12 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
   }
 
   protected areIteratorsRunning(): boolean {
-    return (this.currentIterators.length + this.iteratorsPendingCreation + this.iteratorsPendingTermination) > 0;
+    return (
+      this.currentIterators.length +
+        this.iteratorsPendingCreation +
+        this.iteratorsPendingTermination >
+      0
+    );
   }
 
   /**
@@ -191,7 +226,7 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
    */
   protected abstract accumulateMetadata(
     accumulatedMetadata: MetadataBindings,
-    appendingMetadata: MetadataBindings,
+    appendingMetadata: MetadataBindings
   ): Promise<MetadataBindings>;
 
   /**
@@ -202,93 +237,124 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
   protected startIterator(startSource: ISourceState): void {
     // Delegate the quad pattern query to the given source
     try {
-      const iterator = startSource.source.queryBindings(this.operation, this.context, this.queryBindingsOptions);
-      this.currentIterators.push(iterator);
-      let receivedEndEvent = false;
-      let receivedMetadata = false;
-
-      // Attach readers to the newly created iterator
-      (<any>iterator)._destination = this;
-      iterator.on('error', (error: Error) => this.destroy(error));
-      iterator.on('readable', () => this._fillBuffer());
-      iterator.on('end', () => {
-        this.currentIterators.splice(this.currentIterators.indexOf(iterator), 1);
-
-        // Indicate that this iterator still needs to flush its next-links.
-        // Without this, the linked iterator could sometimes be closed before next-links are obtained.
-        receivedEndEvent = true;
-        if (!receivedMetadata) {
-          this.iteratorsPendingTermination++;
+      const filter: ReqJoinFilters =
+        this.context.get(KeysRdfJoin.reqFilter) ?? new Map();
+      const tpToIgnore = filter.get(startSource.link.url);
+      let executeReqOperation = tpToIgnore === undefined;
+      const operationString = reqOperationToString(this.operation);
+      for(const tp of tpToIgnore??[]){
+        if(tp === operationString){
+          executeReqOperation = false;
+          break;
         }
+      }
+      if (executeReqOperation) {
+        // it is here that we need to determine if want to req^tp_f, f being the url of the startSource startSource.link being the URL of the source
+        const iterator = startSource.source.queryBindings(
+          this.operation,
+          this.context,
+          this.queryBindingsOptions
+        );
+        this.currentIterators.push(iterator);
+        let receivedEndEvent = false;
+        let receivedMetadata = false;
 
-        // If the metadata was already received, handle the next URL in the queue
-        if (receivedMetadata) {
-          this.startIteratorsForNextUrls(startSource.handledDatasets, true);
-        }
-      });
+        // Attach readers to the newly created iterator
+        (<any>iterator)._destination = this;
+        iterator.on("error", (error: Error) => this.destroy(error));
+        iterator.on("readable", () => this._fillBuffer());
+        iterator.on("end", () => {
+          this.currentIterators.splice(
+            this.currentIterators.indexOf(iterator),
+            1
+          );
 
-      // Listen for the metadata of the source
-      // The metadata property is guaranteed to be set
-      iterator.getProperty('metadata', (metadata: MetadataBindings) => {
-        // Accumulate the metadata object
-        this.accumulatedMetadata = this.accumulatedMetadata
-          .then(previousMetadata => (async() => {
-            if (!previousMetadata) {
-              previousMetadata = startSource.metadata;
-            }
-            return this.accumulateMetadata(previousMetadata, metadata);
-          })()
-            .then((accumulatedMetadata) => {
-              // Also merge fields that were not explicitly accumulated
-              const returnMetadata = { ...startSource.metadata, ...metadata, ...accumulatedMetadata };
+          // Indicate that this iterator still needs to flush its next-links.
+          // Without this, the linked iterator could sometimes be closed before next-links are obtained.
+          receivedEndEvent = true;
+          if (!receivedMetadata) {
+            this.iteratorsPendingTermination++;
+          }
 
-              // Create new metadata state
-              returnMetadata.state = new MetadataValidationState();
+          // If the metadata was already received, handle the next URL in the queue
+          if (receivedMetadata) {
+            this.startIteratorsForNextUrls(startSource.handledDatasets, true);
+          }
+        });
 
-              // Emit metadata, and invalidate any metadata that was set before
-              this.updateMetadata(returnMetadata);
+        // Listen for the metadata of the source
+        // The metadata property is guaranteed to be set
+        iterator.getProperty("metadata", (metadata: MetadataBindings) => {
+          // Accumulate the metadata object
+          this.accumulatedMetadata = this.accumulatedMetadata
+            .then((previousMetadata) =>
+              (async () => {
+                if (!previousMetadata) {
+                  previousMetadata = startSource.metadata;
+                }
+                return this.accumulateMetadata(previousMetadata, metadata);
+              })().then((accumulatedMetadata) => {
+                // Also merge fields that were not explicitly accumulated
+                const returnMetadata = {
+                  ...startSource.metadata,
+                  ...metadata,
+                  ...accumulatedMetadata,
+                };
 
-              // Invalidate any preflight metadata
-              if (this.preflightMetadata) {
-                this.preflightMetadata
-                  .then(metadataIn => metadataIn.state.invalidate())
-                  .catch(() => {
-                    // Ignore errors
-                  });
-              }
+                // Create new metadata state
+                returnMetadata.state = new MetadataValidationState();
 
-              // Determine next urls, which will eventually become a next-next source.
-              this.getSourceLinks(returnMetadata, startSource)
-                .then((nextUrls: ILink[]) => Promise.all(nextUrls))
-                .then(async(nextUrls: ILink[]) => {
-                  // Append all next URLs to our queue
-                  const linkQueue = await this.getLinkQueue();
-                  for (const nextUrl of nextUrls) {
-                    linkQueue.push(nextUrl, startSource.link);
-                  }
+                // Emit metadata, and invalidate any metadata that was set before
+                this.updateMetadata(returnMetadata);
 
-                  receivedMetadata = true;
-                  if (receivedEndEvent) {
-                    this.iteratorsPendingTermination--;
-                  }
+                // Invalidate any preflight metadata
+                if (this.preflightMetadata) {
+                  this.preflightMetadata
+                    .then((metadataIn) => metadataIn.state.invalidate())
+                    .catch(() => {
+                      // Ignore errors
+                    });
+                }
 
-                  this.startIteratorsForNextUrls(startSource.handledDatasets, true);
-                }).catch(error => this.destroy(error));
+                // Determine next urls, which will eventually become a next-next source.
+                this.getSourceLinks(returnMetadata, startSource)
+                  .then((nextUrls: ILink[]) => Promise.all(nextUrls))
+                  .then(async (nextUrls: ILink[]) => {
+                    // Append all next URLs to our queue
+                    const linkQueue = await this.getLinkQueue();
+                    for (const nextUrl of nextUrls) {
+                      linkQueue.push(nextUrl, startSource.link);
+                    }
 
-              return returnMetadata;
-            })).catch((error) => {
-            this.destroy(error);
-            return <MetadataBindings>{};
-          });
-      });
+                    receivedMetadata = true;
+                    if (receivedEndEvent) {
+                      this.iteratorsPendingTermination--;
+                    }
+
+                    this.startIteratorsForNextUrls(
+                      startSource.handledDatasets,
+                      true
+                    );
+                  })
+                  .catch((error) => this.destroy(error));
+
+                return returnMetadata;
+              })
+            )
+            .catch((error) => {
+              this.destroy(error);
+              return <MetadataBindings>{};
+            });
+        });
+      }
     } catch (syncError: unknown) {
-      this.destroy(<Error> syncError);
+      this.destroy(<Error>syncError);
     }
   }
 
   protected updateMetadata(metadataNew: MetadataBindings): void {
-    const metadataToInvalidate = this.getProperty<MetadataBindings>('metadata');
-    this.setProperty('metadata', metadataNew);
+    const metadataToInvalidate = this.getProperty<MetadataBindings>("metadata");
+    this.setProperty("metadata", metadataNew);
     metadataToInvalidate?.state.invalidate();
   }
 
@@ -303,7 +369,10 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
    * @param handledDatasets
    * @param canClose
    */
-  protected startIteratorsForNextUrls(handledDatasets: Record<string, boolean>, canClose: boolean): void {
+  protected startIteratorsForNextUrls(
+    handledDatasets: Record<string, boolean>,
+    canClose: boolean
+  ): void {
     this.getLinkQueue()
       .then((linkQueue) => {
         // Create as many new iterators as possible
@@ -314,23 +383,28 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
             this.sourceStateGetter(nextLink, handledDatasets)
               .then((nextSourceState) => {
                 // If we find a statistic tracking dereference events we emit the relevant data
-                const statisticDereferenceLinks: IStatisticBase<ILink> | undefined = this.context.get(
-                  KeysStatistics.dereferencedLinks,
+                const statisticDereferenceLinks:
+                  | IStatisticBase<ILink>
+                  | undefined = this.context.get(
+                  KeysStatistics.dereferencedLinks
                 );
                 if (statisticDereferenceLinks) {
                   statisticDereferenceLinks.updateStatistic(
                     {
                       url: nextSourceState.link.url,
-                      metadata: { ...nextSourceState.metadata, ...nextSourceState.link.metadata },
+                      metadata: {
+                        ...nextSourceState.metadata,
+                        ...nextSourceState.link.metadata,
+                      },
                     },
-                    nextSourceState.source,
+                    nextSourceState.source
                   );
                 }
 
                 this.iteratorsPendingCreation--;
                 this.startIterator(nextSourceState);
               })
-              .catch(error => this.emit('error', error));
+              .catch((error) => this.emit("error", error));
           } else {
             break;
           }
@@ -341,10 +415,13 @@ export abstract class LinkedRdfSourcesAsyncRdfIterator extends BufferedIterator<
           this.close();
         }
       })
-      .catch(error => this.destroy(error));
+      .catch((error) => this.destroy(error));
   }
 
-  protected isCloseable(linkQueue: ILinkQueue, _requireQueueEmpty: boolean): boolean {
+  protected isCloseable(
+    linkQueue: ILinkQueue,
+    _requireQueueEmpty: boolean
+  ): boolean {
     return linkQueue.isEmpty() && !this.areIteratorsRunning();
   }
 }
@@ -372,4 +449,7 @@ export interface ISourceState {
   handledDatasets: Record<string, boolean>;
 }
 
-export type SourceStateGetter = (link: ILink, handledDatasets: Record<string, boolean>) => Promise<ISourceState>;
+export type SourceStateGetter = (
+  link: ILink,
+  handledDatasets: Record<string, boolean>
+) => Promise<ISourceState>;

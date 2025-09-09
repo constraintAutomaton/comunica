@@ -339,6 +339,10 @@ export const KeysRdfJoin = {
    * The last physical join actor that was executed.
    */
   lastPhysicalJoin: new ActionContextKey<string>('@comunica/bus-rdf-join:lastPhysicalJoin'),
+  /**
+   * Filter on join for an initial request.
+   */
+  reqFilter:new ActionContextKey<ReqJoinFilters>('@comunica/bus-rdf-join:lastPhysicalJoin'),
 };
 
 export const KeysStatistics = {
@@ -361,3 +365,13 @@ export const KeysStatistics = {
     '@comunica/statistic:intermediateResults',
   ),
 };
+
+export type ReqJoinFilters =  Map<string, ReqOperationTriplePattern[]>;
+
+export type ReqOperationTriplePattern = string;
+
+
+export function reqOperationToString(op: Algebra.Operation):ReqOperationTriplePattern{
+  const resp = `${op.subject.value}-${op.predicate.value}-${op.object.value}`;
+  return resp;
+}

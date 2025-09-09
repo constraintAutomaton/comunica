@@ -90,6 +90,7 @@ export class ActorQueryOperationSource extends ActorQueryOperation {
 
     const bindingsStream = sourceWrapper.source.queryBindings(action.operation, mergedContext);
     const metadata = getMetadataBindings(bindingsStream);
+    // this is where the initial binding are fetch before being join
     return {
       type: 'bindings',
       bindingsStream,
