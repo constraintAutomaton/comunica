@@ -11453,10 +11453,10 @@ restore-cursor@^3.1.0:
     onetime "^5.1.0"
     signal-exit "^3.0.2"
 
-result-interface@^2.3.0:
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/result-interface/-/result-interface-2.3.0.tgz#3721d8b5c990bc0451ca8ecc5b303ab4182ff363"
-  integrity sha512-2qCDN345OYH/7qjIwuAzeXeX3J1hReGHZcO/04D6XtJkpu9zCg9xzsHpt3vvkuF7uvUXh8qDy7ugaTKxsZ1oSw==
+result-interface@^2.3.3:
+  version "2.3.3"
+  resolved "https://registry.yarnpkg.com/result-interface/-/result-interface-2.3.3.tgz#56e61cf132a2114e1b30dce89bb98911d680c11e"
+  integrity sha512-qRsCBWEk52CqcbFMM8mbmWk3gfw3gM6KUvUsoWpM20X3E2rhd/T2TYJQZvLhR5XI0tF9VtHzTk3g7q2TDvf3fA==
 
 ret@~0.1.10:
   version "0.1.15"
