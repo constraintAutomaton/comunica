@@ -1,3 +1,4 @@
+import type { ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
 import { ActionContextKey, CONTEXT_KEY_LOGGER } from '@comunica/core';
 import type {
   AsyncExtensionFunctionCreator,
@@ -25,8 +26,6 @@ import type {
 import type * as RDF from '@rdfjs/types';
 import type { IDocumentLoader } from 'jsonld-context-parser';
 import type { Algebra } from 'sparqlalgebrajs';
-import { ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
-
 
 /**
  * When adding entries to this file, also add a shortcut for them in the contextKeyShortcuts TSDoc comment in
@@ -368,6 +367,6 @@ export const KeyReasoning = {
   /**
    * The query source reasoning by the scope of the rule set
    */
-  querySources: new ActionContextKey<ReasoningQuerySourceMap>('@comunica/actor-context-preprocess-query-source-reasoning:querySources')
+  querySources: new ActionContextKey<ReasoningQuerySourceMap>('@comunica/actor-context-preprocess-query-source-reasoning:querySources'),
 
 };

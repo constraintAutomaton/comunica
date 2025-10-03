@@ -3,45 +3,50 @@
   "version": "1.0.0",
   "description": "A query-source-reasoning context-preprocess actor",
   "lsd:module": true,
-  "main": "lib/index.js",
-  "typings": "lib/index",
+  "license": "MIT",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/comunica-association"
+  },
+  "homepage": "https://comunica.dev/",
   "repository": {
     "type": "git",
     "url": "https://github.com/comunica/comunica.git",
     "directory": "packages/actor-context-preprocess-query-source-reasoning"
   },
-  "publishConfig": {
-    "access": "public"
+  "bugs": {
+    "url": "https://github.com/comunica/comunica/issues"
   },
-  "sideEffects": false,
   "keywords": [
     "comunica",
     "actor",
     "context-preprocess",
     "query-source-reasoning"
   ],
-  "license": "MIT",
-  "funding": {
-    "type": "opencollective",
-    "url": "https://opencollective.com/comunica-association"
+  "sideEffects": false,
+  "main": "lib/index.js",
+  "typings": "lib/index",
+  "publishConfig": {
+    "access": "public"
   },
-  "bugs": {
-    "url": "https://github.com/comunica/comunica/issues"
-  },
-  "homepage": "https://comunica.dev/",
   "files": [
     "components",
     "lib/**/*.d.ts",
     "lib/**/*.js",
     "lib/**/*.js.map"
   ],
-  "dependencies": {
-    "@comunica/core": "^4.0.2",
-    "@comunica/bus-context-preprocess": "^4.0.2"
-  },
   "scripts": {
     "build": "yarn run build:ts && yarn run build:components",
     "build:ts": "node \"../../node_modules/typescript/bin/tsc\"",
     "build:components": "componentsjs-generator"
+  },
+  "dependencies": {
+    "@comunica/bus-context-preprocess": "^4.0.2",
+    "@comunica/core": "^4.0.2",
+    "rdf-streaming-store": "^2.1.1",
+    "result-interface": "^2.3.3"
+  },
+  "devDependencies": {
+    "streamify-array": "^2.0.0"
   }
 }

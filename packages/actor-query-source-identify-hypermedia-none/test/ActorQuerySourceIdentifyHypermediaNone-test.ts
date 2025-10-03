@@ -68,6 +68,7 @@ describe('ActorQuerySourceIdentifyHypermediaNone', () => {
           { variable: v2, canBeUndef: false },
           { variable: v3, canBeUndef: false },
         ],
+        requestTime: 0,
       });
       await expect(stream).toEqualBindingsStream([
         BF.fromRecord({
@@ -103,6 +104,7 @@ describe('ActorQuerySourceIdentifyHypermediaNone', () => {
           { variable: v1, canBeUndef: false },
           { variable: v2, canBeUndef: false },
         ],
+        requestTime: 0,
       });
       await expect(stream).toEqualBindingsStream([
         BF.fromRecord({
@@ -120,7 +122,7 @@ describe('ActorQuerySourceIdentifyHypermediaNone', () => {
       // eslint-disable-next-line no-async-promise-executor,ts/no-misused-promises
       await expect(new Promise(async(resolve, reject) => {
         const { source } = await actor.run({ metadata: <any> null, quads, url: '', context });
-        (<any> source).source.match = () => {
+        (<any> source).source.matchBindings = () => {
           const str = new Readable();
           str._read = () => {
             str.emit('error', new Error('Dummy error'));

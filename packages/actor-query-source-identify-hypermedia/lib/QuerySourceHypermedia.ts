@@ -1,3 +1,5 @@
+import { isQuerySourceReasoning, isQuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import type { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import type { IActorDereferenceRdfOutput, MediatorDereferenceRdf } from '@comunica/bus-dereference-rdf';
 import type { MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
@@ -6,7 +8,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeyReasoning, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -17,12 +19,10 @@ import type {
   IQuerySource,
   MetadataBindings,
   ILink,
-  QuerySourceReference,
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator } from 'asynciterator';
-import { TransformIterator } from 'asynciterator';
+import { AsyncIterator, TransformIterator, wrap as wrapAsyncIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
 import type { Algebra } from 'sparqlalgebrajs';
@@ -30,9 +30,6 @@ import { Factory } from 'sparqlalgebrajs';
 import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
-import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
-import { ActorContextPreprocessQuerySourceReasoning, isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
-import { ArrayIterator, wrap as wrapAsyncIterator, UnionIterator } from 'asynciterator';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -138,7 +135,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   }
 
   public queryQuads(operation: Algebra.Operation, context: IActionContext): AsyncIterator<RDF.Quad> {
-    return new TransformIterator(async () => {
+    return new TransformIterator(async() => {
       const source = await this.getSourceCached({ url: this.firstUrl }, {}, context, this.getAggregateStore(context));
       return source.source.queryQuads(operation, context);
     });
@@ -176,50 +173,57 @@ export class QuerySourceHypermedia implements IQuerySource {
     let url = link.url;
     let quads: RDF.Stream;
     let metadata: Record<string, any>;
-    try {
-      const dereferenceRdfOutput: IActorDereferenceRdfOutput = await this.mediators.mediatorDereferenceRdf
-        .mediate({ context, url });
-      url = dereferenceRdfOutput.url;
-
-      // Determine the metadata
-      const rdfMetadataOutput: IActorRdfMetadataOutput = await this.mediators.mediatorMetadata.mediate(
-        { context, url, quads: dereferenceRdfOutput.data, triples: dereferenceRdfOutput.metadata?.triples },
-      );
-
-      rdfMetadataOutput.data.on('error', () => {
-        // Silence errors in the data stream,
-        // as they will be emitted again in the metadata stream,
-        // and will result in a promise rejection anyways.
-        // If we don't do this, we end up with an unhandled error message
-      });
-
-      metadata = (await this.mediators.mediatorMetadataExtract.mediate({
-        context,
-        url,
-        // The problem appears to be conflicting metadata keys here
-        metadata: rdfMetadataOutput.metadata,
-        headers: dereferenceRdfOutput.headers,
-        requestTime: dereferenceRdfOutput.requestTime,
-      })).metadata;
-      quads = rdfMetadataOutput.data;
-
-      // Optionally filter the resulting data
-      if (link.transform) {
-        quads = await link.transform(quads);
-      }
-    } catch (error: unknown) {
-      // Make sure that dereference errors are only emitted once an actor really needs the read quads
-      // This for example allows SPARQL endpoints that error on service description fetching to still be source-forcible
+    if (this.forceSourceType === 'sparql' && context.get(KeysQueryOperation.querySources)?.length === 1) {
+      // Skip metadata extraction if we're querying over just a single SPARQL endpoint.
       quads = new Readable();
-      quads.read = () => {
-        setTimeout(() => quads.emit('error', error));
-        return null;
-      };
+      quads.read = () => null;
       ({ metadata } = await this.mediators.mediatorMetadataAccumulate.mediate({ context, mode: 'initialize' }));
+    } else {
+      try {
+        const dereferenceRdfOutput: IActorDereferenceRdfOutput = await this.mediators.mediatorDereferenceRdf
+          .mediate({ context, url });
+        url = dereferenceRdfOutput.url;
 
-      // Log as warning, because the quads above may not always be consumed (e.g. for SPARQL endpoints),
-      // so the user would not be notified of something going wrong otherwise.
-      this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
+        // Determine the metadata
+        const rdfMetadataOutput: IActorRdfMetadataOutput = await this.mediators.mediatorMetadata.mediate(
+          { context, url, quads: dereferenceRdfOutput.data, triples: dereferenceRdfOutput.metadata?.triples },
+        );
+
+        rdfMetadataOutput.data.on('error', () => {
+          // Silence errors in the data stream,
+          // as they will be emitted again in the metadata stream,
+          // and will result in a promise rejection anyways.
+          // If we don't do this, we end up with an unhandled error message
+        });
+
+        metadata = (await this.mediators.mediatorMetadataExtract.mediate({
+          context,
+          url,
+          // The problem appears to be conflicting metadata keys here
+          metadata: rdfMetadataOutput.metadata,
+          headers: dereferenceRdfOutput.headers,
+          requestTime: dereferenceRdfOutput.requestTime,
+        })).metadata;
+        quads = rdfMetadataOutput.data;
+
+        // Optionally filter the resulting data
+        if (link.transform) {
+          quads = await link.transform(quads);
+        }
+      } catch (error: unknown) {
+        // Make sure that dereference errors are only emitted once an actor really needs the read quads
+        // This allows SPARQL endpoints that error on service description fetching to still be source-forcible
+        quads = new Readable();
+        quads.read = () => {
+          setTimeout(() => quads.emit('error', error));
+          return null;
+        };
+        ({ metadata } = await this.mediators.mediatorMetadataAccumulate.mediate({ context, mode: 'initialize' }));
+
+        // Log as warning, because the quads above may not always be consumed (e.g. for SPARQL endpoints),
+        // so the user would not be notified of something going wrong otherwise.
+        this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
+      }
     }
 
     const quadsIterator = wrapAsyncIterator(quads, { autoStart: false });
@@ -245,19 +249,18 @@ export class QuerySourceHypermedia implements IQuerySource {
     });
 
     if (isQuerySourceReasoning(source)) {
-      if (this.aggregatedStoreQueryStoreReasoning !== undefined) {
-        this.aggregatedStoreQueryStoreReasoning.addSource(quadDestinationReasoningQuerySource, link.url, context);
-      } else {
+      if (this.aggregatedStoreQueryStoreReasoning === undefined) {
+        const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
         if (aggregatedStore) {
           const aggregatedSource = new QuerySourceRdfJs(
             aggregatedStore,
             context.getSafe(KeysInitQuery.dataFactory),
             this.bindingsFactory,
           );
-          const aggregatedStoreReasoningMetadata = metadata;
-          aggregatedStoreReasoningMetadata["reasoningAggregatedStore"] = {
+          const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
+          aggregatedStoreReasoningMetadata.reasoningAggregatedStore = {
             store: aggregatedStore,
-            source: aggregatedSource
+            source: aggregatedSource,
           };
           const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
             context,
@@ -268,10 +271,11 @@ export class QuerySourceHypermedia implements IQuerySource {
           if (isQuerySourceReasoningMultipleSources(source)) {
             this.aggregatedStoreQueryStoreReasoning = source;
           } else {
-            throw new Error("was not able to generate a reasoning source");
+            throw new Error('was not able to generate a reasoning source');
           }
         }
-
+      } else {
+        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
       }
     }
 
@@ -320,7 +324,7 @@ export class QuerySourceHypermedia implements IQuerySource {
         if (!aggregatedStore) {
           aggregatedStore = new StreamingStoreMetadata(
             undefined,
-            async (accumulatedMetadata, appendingMetadata) => <MetadataBindings>
+            async(accumulatedMetadata, appendingMetadata) => <MetadataBindings>
               (await this.mediators.mediatorMetadataAccumulate.mediate({
                 mode: 'append',
                 accumulatedMetadata,

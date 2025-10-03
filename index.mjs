@@ -1,5 +1,5 @@
-import { LoggerBunyan, BunyanStreamProviderStdout } from '@comunica/logger-bunyan';
 import { KeyReasoning } from '@comunica/context-entries';
+import { LoggerBunyan, BunyanStreamProviderStdout } from '@comunica/logger-bunyan';
 import { QueryEngineFactory } from '@comunica/query-sparql';
 import { DataFactory } from 'rdf-data-factory';
 
@@ -18,30 +18,30 @@ const streamProvider = new BunyanStreamProviderStdout({ level: 'debug' });
 const loggerParams = {
   name: 'comunica',
   level: 'info',
-  streamProviders: [streamProvider],
+  streamProviders: [ streamProvider ],
 };
 const logger = new LoggerBunyan(loggerParams);
-const sameAs = DF.namedNode("http://www.w3.org/2002/07/owl#sameAs");
+const sameAs = DF.namedNode('http://www.w3.org/2002/07/owl#sameAs');
 
 const debugRule = [
   DF.quad(
-    DF.namedNode("http://www.w3.org/ns/pim/space#storage"),
+    DF.namedNode('http://www.w3.org/ns/pim/space#storage'),
     sameAs,
-    DF.namedNode("http://www.w3.org/ns/pim/space#storage2")
+    DF.namedNode('http://www.w3.org/ns/pim/space#storage2'),
   ),
   DF.quad(
-    DF.namedNode("http://www.w3.org/ns/pim/space#storage2"),
+    DF.namedNode('http://www.w3.org/ns/pim/space#storage2'),
     sameAs,
-    DF.namedNode("http://www.w3.org/ns/pim/space#storage3")
-  )
+    DF.namedNode('http://www.w3.org/ns/pim/space#storage3'),
+  ),
 ];
 const bindingsStream = await myEngine.queryBindings(query, {
   lenient: true,
-  //log: logger,
+  // Log: logger,
   [KeyReasoning.rules.name]: new Map([
-    ["*", debugRule]
+    [ '*', debugRule ],
   ]),
-  sources: ["https://solidbench.linkeddatafragments.org/pods/00000000000000000933/profile/card#me"]
+  sources: [ 'https://solidbench.linkeddatafragments.org/pods/00000000000000000933/profile/card#me' ],
 
 });
 
@@ -52,7 +52,6 @@ bindingsStream.on('data', (binding) => {
 });
 bindingsStream.on('end', () => {
   console.log(`there are ${i} results`);
-
 });
 bindingsStream.on('error', (error) => {
   console.error(error);
