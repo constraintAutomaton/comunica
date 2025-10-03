@@ -8,7 +8,7 @@ import type { IActorArgs, IActorTest, TestResult } from '@comunica/core';
 import type { IQuerySourceWrapper, QuerySourceReference } from '@comunica/types';
 import { StreamingStore } from 'rdf-streaming-store';
 import { QuerySourceReasoning } from './QuerySourceReasoning';
-import { parseRules, type IRuleGraph, type ReasoningQuerySourceMap, type ScopedRules } from './Rules';
+import { parseRules, type IRuleGraph, type ScopedRules } from './Rules';
 import { passTestVoid } from '@comunica/core';
 import { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
 import { BindingsFactory } from '@comunica/utils-bindings-factory';
