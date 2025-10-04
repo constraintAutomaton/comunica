@@ -275,7 +275,7 @@ export class QuerySourceHypermedia implements IQuerySource {
           }
         }
       } else {
-        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
+        this.aggregatedStoreQueryStoreReasoning.addSource(quadDestinationReasoningQuerySource, link.url, context);
       }
     }
 
