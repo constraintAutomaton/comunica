@@ -231,10 +231,17 @@ export class QuerySourceHypermedia implements IQuerySource {
       }
     }
 
-    // Aggregate all discovered quads into a store.
-    aggregatedStore?.setBaseMetadata(<MetadataBindings>metadata, false);
-    aggregatedStore?.containedSources.add(link.url);
-    aggregatedStore?.import(quads);
+    const quadsIterator = wrapAsyncIterator(quads, { autoStart: false });
+    const [
+      quadDestinationQuerySourceIdentify,
+      quadDestinationReasoningQuerySource
+    ] = [quadsIterator.clone(), quadsIterator.clone()];
+    if (aggregatedStore) {
+      // Aggregate all discovered quads into a store.
+      aggregatedStore.setBaseMetadata(<MetadataBindings>metadata, false);
+      aggregatedStore.containedSources.add(link.url);
+      aggregatedStore.import(quadsIterator.clone());
+    }
 
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
@@ -242,7 +249,7 @@ export class QuerySourceHypermedia implements IQuerySource {
       forceSourceType: link.url === this.firstUrl ? this.forceSourceType : undefined,
       handledDatasets,
       metadata,
-      quads,
+      quads: quadDestinationQuerySourceIdentify,
       url,
     });
 
@@ -273,7 +280,7 @@ export class QuerySourceHypermedia implements IQuerySource {
           }
         }
       } else {
-        this.aggregatedStoreQueryStoreReasoning.addSource(wrapAsyncIterator(quads, { autoStart: false }), link.url, context);
+        this.aggregatedStoreQueryStoreReasoning.addSource(quadDestinationReasoningQuerySource, link.url, context);
       }
     }
 

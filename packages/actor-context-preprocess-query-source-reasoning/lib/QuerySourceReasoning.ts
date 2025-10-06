@@ -174,7 +174,9 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
 
     if (!unions.getProperty('metadata')) {
       this.setMetadata(unions, bindingStreamOriginal, implicitBindingStream, context)
-        .catch(error => unions.destroy(error));
+        .catch(error => {
+          unions.destroy(error)
+        });
     }
 
     return unions;
