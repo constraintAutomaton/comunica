@@ -1,3 +1,4 @@
+import { QuerySourceReference } from '@comunica/types';
 import type * as RDF from '@rdfjs/types';
 import { DataFactory } from 'rdf-data-factory';
 
@@ -54,9 +55,9 @@ export interface IRuleGraph {
   rules: Rule[];
 }
 
-export type ReasoningQuerySourceMap = Map<string | RDF.Source, boolean>;
+export type ReasoningQuerySourceMap = Map<QuerySourceReference, boolean>;
 
-export type ScopedRules = Map<string | RDF.Source, RDF.Quad[]>;
+export type ScopedRules = Map<QuerySourceReference, RDF.Quad[]>;
 
 export function parseRules(quads: RDF.Quad[]): IRuleGraph {
   const ruleGraph: IRuleGraph = {

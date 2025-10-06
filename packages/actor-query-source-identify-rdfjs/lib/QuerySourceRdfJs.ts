@@ -6,11 +6,12 @@ import type {
   IActionContext,
   FragmentSelectorShape,
   ComunicaDataFactory,
+  QuerySourceReference,
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import { MetadataValidationState } from '@comunica/utils-metadata';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator, wrap as wrapAsyncIterator } from 'asynciterator';
+import { ArrayIterator, AsyncIterator, wrap as wrapAsyncIterator } from 'asynciterator';
 import { someTermsNested, filterTermsNested, someTerms, uniqTerms } from 'rdf-terms';
 import type { Algebra } from 'sparqlalgebrajs';
 import { Factory } from 'sparqlalgebrajs';
@@ -18,12 +19,17 @@ import type { IRdfJsSourceExtended } from './IRdfJsSourceExtended';
 
 export class QuerySourceRdfJs implements IQuerySource {
   protected readonly selectorShape: FragmentSelectorShape;
-  public referenceValue: string | RDF.Source;
-  protected readonly source: IRdfJsSourceExtended;
+  public referenceValue: QuerySourceReference;
+  protected readonly source: IRdfJsSourceExtended | RDF.DatasetCore;
   private readonly dataFactory: ComunicaDataFactory;
   private readonly bindingsFactory: BindingsFactory;
+  private readonly dummyDefaultGraph: RDF.Variable;
 
-  public constructor(source: RDF.Source, dataFactory: ComunicaDataFactory, bindingsFactory: BindingsFactory) {
+  public constructor(
+    source: RDF.Source | RDF.DatasetCore,
+    dataFactory: ComunicaDataFactory,
+    bindingsFactory: BindingsFactory,
+  ) {
     this.source = source;
     this.referenceValue = source;
     this.dataFactory = dataFactory;
@@ -45,6 +51,7 @@ export class QuerySourceRdfJs implements IQuerySource {
         this.dataFactory.variable('o'),
       ],
     };
+    this.dummyDefaultGraph = this.dataFactory.variable('__comunica:defaultGraph');
   }
 
   public static nullifyVariables(term: RDF.Term | undefined, quotedTripleFiltering: boolean): RDF.Term | undefined {
@@ -68,9 +75,15 @@ export class QuerySourceRdfJs implements IQuerySource {
       throw new Error(`Attempted to pass non-pattern operation '${operation.type}' to QuerySourceRdfJs`);
     }
 
+    // Check if we're running in union default graph mode
+    const unionDefaultGraph = Boolean(context.get(KeysQueryOperation.unionDefaultGraph));
+    if (operation.graph.termType === 'DefaultGraph' && unionDefaultGraph) {
+      operation.graph = this.dummyDefaultGraph;
+    }
+
     // Get bindings directly if the source allows it
     // This will be more efficient, as it avoids the intermediary quads translation and representation.
-    if (this.source.matchBindings) {
+    if ('matchBindings' in this.source && this.source.matchBindings) {
       const rawStream = this.source.matchBindings(
         this.bindingsFactory,
         operation.subject,
@@ -86,24 +99,29 @@ export class QuerySourceRdfJs implements IQuerySource {
       // SPARQL query semantics allow graph variables to only match with named graphs, excluding the default graph
       // But this is not the case when using union default graph semantics
       let forceEstimateCardinality = false;
-      if (operation.graph.termType === 'Variable' && !context.get(KeysQueryOperation.unionDefaultGraph)) {
+      if (operation.graph.termType === 'Variable' && !unionDefaultGraph) {
         forceEstimateCardinality = true;
         const variable = operation.graph;
         it = it.filter(bindings => bindings.get(variable)!.termType !== 'DefaultGraph');
       }
 
-      // Determine metadata
-      if (!it.getProperty('metadata')) {
-        const variables = getVariables(operation).map(variable => ({ variable, canBeUndef: false }));
-        this.setMetadata(it, operation, forceEstimateCardinality, { variables })
-          .catch(error => it.destroy(error));
+      // Remove bindings to the dummy __comunica:defaultGraph variable if needed
+      if (operation.graph.equals(this.dummyDefaultGraph)) {
+        it = it.map(bindings => bindings.delete(this.dummyDefaultGraph));
+        // Restore graph for determining variable metadata
+        operation.graph = this.dataFactory.defaultGraph();
       }
+
+      // Determine metadata
+      const variables = getVariables(operation).map(variable => ({ variable, canBeUndef: false }));
+      this.setMetadata(it, operation, context, forceEstimateCardinality, { variables })
+        .catch(error => it.destroy(error));
 
       return it;
     }
 
     // Check if the source supports quoted triple filtering
-    const quotedTripleFiltering = Boolean(this.source.features?.quotedTripleFiltering);
+    const quotedTripleFiltering = Boolean('features' in this.source && this.source.features?.quotedTripleFiltering);
 
     // Create an async iterator from the matched quad stream
     const rawStream = this.source.match(
@@ -123,8 +141,13 @@ export class QuerySourceRdfJs implements IQuerySource {
 
     // Determine metadata
     if (!it.getProperty('metadata')) {
-      this.setMetadata(it, operation)
+      this.setMetadata(it, operation, context)
         .catch(error => it.destroy(error));
+    }
+
+    // Restore graph for determining variable metadata
+    if (operation.graph.equals(this.dummyDefaultGraph)) {
+      operation.graph = this.dataFactory.defaultGraph();
     }
 
     return quadsToBindings(
@@ -139,14 +162,21 @@ export class QuerySourceRdfJs implements IQuerySource {
   protected async setMetadata(
     it: AsyncIterator<any>,
     operation: Algebra.Pattern,
+    context: IActionContext,
     forceEstimateCardinality = false,
     extraMetadata: Record<string, any> = {},
   ): Promise<void> {
     // Check if the source supports quoted triple filtering
-    const quotedTripleFiltering = Boolean(this.source.features?.quotedTripleFiltering);
+    const quotedTripleFiltering = Boolean('features' in this.source && this.source.features?.quotedTripleFiltering);
+
+    // Check if we're running in union default graph mode
+    const unionDefaultGraph = Boolean(context.get(KeysQueryOperation.unionDefaultGraph));
+    if (operation.graph.termType === 'DefaultGraph' && unionDefaultGraph) {
+      operation.graph = this.dummyDefaultGraph;
+    }
 
     let cardinality: number;
-    if (this.source.countQuads) {
+    if ('countQuads' in this.source && this.source.countQuads) {
       // If the source provides a dedicated method for determining cardinality, use that.
       cardinality = await this.source.countQuads(
         QuerySourceRdfJs.nullifyVariables(operation.subject, quotedTripleFiltering),
@@ -160,18 +190,21 @@ export class QuerySourceRdfJs implements IQuerySource {
       // because we may lose data elements due to things happening async.
       let i = 0;
       cardinality = await new Promise((resolve, reject) => {
-        const matches = this.source.match(
+        let matches = this.source.match(
           QuerySourceRdfJs.nullifyVariables(operation.subject, quotedTripleFiltering),
           QuerySourceRdfJs.nullifyVariables(operation.predicate, quotedTripleFiltering),
           QuerySourceRdfJs.nullifyVariables(operation.object, quotedTripleFiltering),
           QuerySourceRdfJs.nullifyVariables(operation.graph, quotedTripleFiltering),
         );
-        matches.on('error', (error) => {
-          console.log(error);
-          reject(error);
-        });
-        matches.on('end', () => resolve(i));
-        matches.on('data', () => i++);
+
+        // If it's not a stream, turn it into one
+        if (typeof (<any> matches).on !== 'function') {
+          matches = <RDF.Stream>(new ArrayIterator(<RDF.DatasetCore> matches));
+        }
+
+        (<RDF.Stream>matches).on('error', reject);
+        (<RDF.Stream>matches).on('end', () => resolve(i));
+        (<RDF.Stream>matches).on('data', () => i++);
       });
     }
 

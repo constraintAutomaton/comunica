@@ -34,7 +34,7 @@ export class ActorContextPreprocessQuerySourceReasoning extends ActorContextPrep
     return passTestVoid();
   }
 
-  public static selectCorrespondingRuleSet(rules: ScopedRules, referenceValue: string | RDF.Source): IRuleGraph {
+  public static selectCorrespondingRuleSet(rules: ScopedRules, referenceValue: QuerySourceReference): IRuleGraph {
     const ruleForAll: IRuleGraph = rules.get('*') === undefined ?
       { rules: [] } :
       parseRules(rules.get('*')!);

@@ -9,6 +9,7 @@ import type {
   IActionContext,
   IQueryBindingsOptions,
   IQuerySource,
+  QuerySourceReference,
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
@@ -191,7 +192,7 @@ export abstract class AbstractQuerySourceReasoning implements IQuerySource {
     throw new Error('queryVoid is not implemented in QuerySourceReasoning');
   }
 
-  public get referenceValue(): string | RDF.Source {
+  public get referenceValue(): QuerySourceReference {
     return this.innerSource.referenceValue;
   }
 
