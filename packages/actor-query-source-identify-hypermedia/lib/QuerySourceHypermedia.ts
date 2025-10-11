@@ -1,5 +1,5 @@
-import { isQuerySourceReasoning, isQuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning';
-import type { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
+import { ActorContextPreprocessQuerySourceReasoning, isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import type { IActorDereferenceRdfOutput, MediatorDereferenceRdf } from '@comunica/bus-dereference-rdf';
 import type { MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
@@ -8,7 +8,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
+import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify, KeyReasoning } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -22,7 +22,7 @@ import type {
 } from '@comunica/types';
 import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
-import { AsyncIterator, TransformIterator, wrap as wrapAsyncIterator } from 'asynciterator';
+import { AsyncIterator, TransformIterator, UnionIterator, wrap as wrapAsyncIterator } from 'asynciterator';
 import { LRUCache } from 'lru-cache';
 import { Readable } from 'readable-stream';
 import type { Algebra } from 'sparqlalgebrajs';
@@ -201,7 +201,24 @@ export class QuerySourceHypermedia implements IQuerySource {
           // If we don't do this, we end up with an unhandled error message
         });
 
-        metadata = (await this.mediators.mediatorMetadataExtract.mediate({
+        const rules: ScopedRules | undefined = context.get(KeyReasoning.rules);
+        if (rules !== undefined) {
+          const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
+          const metadataOriginal = wrapAsyncIterator(rdfMetadataOutput.metadata, { autoStart: false });
+          const [destinationImplicitQuad, destinationExtract] = [metadataOriginal.clone(), metadataOriginal.clone()];
+          const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, destinationImplicitQuad);
+          const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false });
+
+          metadata = (await this.mediators.mediatorMetadataExtract.mediate({
+          context,
+          url,
+          // The problem appears to be conflicting metadata keys here
+          metadata: metadataSent,
+          headers: dereferenceRdfOutput.headers,
+          requestTime: dereferenceRdfOutput.requestTime,
+        })).metadata;  
+        }else{
+          metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
           url,
           // The problem appears to be conflicting metadata keys here
@@ -209,6 +226,8 @@ export class QuerySourceHypermedia implements IQuerySource {
           headers: dereferenceRdfOutput.headers,
           requestTime: dereferenceRdfOutput.requestTime,
         })).metadata;
+        }
+
         quads = rdfMetadataOutput.data;
 
         // Optionally filter the resulting data
