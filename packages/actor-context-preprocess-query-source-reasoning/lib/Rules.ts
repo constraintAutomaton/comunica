@@ -57,7 +57,7 @@ export interface IRuleGraph {
 
 export type ReasoningQuerySourceMap = Map<QuerySourceReference, boolean>;
 
-export type ScopedRules = Map<QuerySourceReference, RDF.Quad[]>;
+export type ScopedRules = Map<QuerySourceReference, RDF.BaseQuad[]>;
 
 export function parseRules(quads: RDF.BaseQuad[]): IRuleGraph {
   const ruleGraph: IRuleGraph = {

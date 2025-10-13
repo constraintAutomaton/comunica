@@ -35,6 +35,7 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
   public readonly maxIterators: number;
   public readonly aggregateTraversalStore: boolean;
   public readonly emitPartialCardinalities: boolean;
+  public readonly onlineSchemaAligment:boolean;
 
   public constructor(args: IActorQuerySourceIdentifyHypermediaArgs) {
     super(args);
@@ -71,6 +72,7 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
           warningMessage => this.logWarn(action.context, warningMessage),
           dataFactory,
           await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
+          this.onlineSchemaAligment?this.mediatorDereferenceRdf:undefined
         ),
         context: action.querySourceUnidentified.context ?? new ActionContext(),
       },
@@ -138,4 +140,9 @@ export interface IActorQuerySourceIdentifyHypermediaArgs extends IActorQuerySour
    * A mediator for creating binding context merge handlers
    */
   mediatorMergeBindingsContext: MediatorMergeBindingsContext;
+  /**
+   * Fetch remote schema alignment rules and perform the online alignment
+   * @default {false}
+   */
+  onlineSchemaAligment:boolean;
 }

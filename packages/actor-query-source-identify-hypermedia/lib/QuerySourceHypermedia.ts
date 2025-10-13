@@ -30,6 +30,7 @@ import { Factory } from 'sparqlalgebrajs';
 import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
+import { OnlineSchemaAligmentRuleManager } from './OnlineSchemaAligmentRuleManager';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -40,6 +41,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   public readonly logWarning: (warningMessage: string) => void;
   public readonly dataFactory: ComunicaDataFactory;
   public readonly bindingsFactory: BindingsFactory;
+  public readonly onlineSchemaAligmentManager?: OnlineSchemaAligmentRuleManager;
 
   /**
    * A cache for source URLs to source states.
@@ -63,6 +65,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     logWarning: (warningMessage: string) => void,
     dataFactory: ComunicaDataFactory,
     bindingsFactory: BindingsFactory,
+    onlineSchemaAligment?:MediatorDereferenceRdf,
 
   ) {
     this.referenceValue = firstUrl;
@@ -77,6 +80,9 @@ export class QuerySourceHypermedia implements IQuerySource {
     this.dataFactory = dataFactory;
     this.bindingsFactory = bindingsFactory;
     this.sourcesState = new LRUCache<string, Promise<ISourceState>>({ max: this.cacheSize });
+    if(onlineSchemaAligment){
+      this.onlineSchemaAligmentManager = new OnlineSchemaAligmentRuleManager(onlineSchemaAligment);
+    }
   }
 
   public async getSelectorShape(context: IActionContext): Promise<FragmentSelectorShape> {
@@ -202,21 +208,24 @@ export class QuerySourceHypermedia implements IQuerySource {
         });
 
         const rules: ScopedRules | undefined = context.get(KeyReasoning.rules);
-        if (rules !== undefined) {
-          const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
+        if (rules !== undefined && this.onlineSchemaAligmentManager && this.onlineSchemaAligmentManager?.test(context)) {
           const metadataOriginal = wrapAsyncIterator(rdfMetadataOutput.metadata, { autoStart: false });
-          const [destinationImplicitQuad, destinationExtract] = [metadataOriginal.clone(), metadataOriginal.clone()];
+          const [destinationImplicitQuad, destinationExtract, destinationOnlineSchemaManager] = [metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone()];
+          await this.onlineSchemaAligmentManager.run(destinationOnlineSchemaManager, context);
+
+          const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
           const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, destinationImplicitQuad);
           const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false });
-
+          const [extractMetadata, querySourceData] = [metadataSent.clone(), metadataSent.clone()];
           metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
           url,
           // The problem appears to be conflicting metadata keys here
-          metadata: metadataSent,
+          metadata: extractMetadata,
           headers: dereferenceRdfOutput.headers,
           requestTime: dereferenceRdfOutput.requestTime,
-        })).metadata;  
+        })).metadata;
+        quads = querySourceData;
         }else{
           metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
@@ -226,9 +235,8 @@ export class QuerySourceHypermedia implements IQuerySource {
           headers: dereferenceRdfOutput.headers,
           requestTime: dereferenceRdfOutput.requestTime,
         })).metadata;
-        }
-
         quads = rdfMetadataOutput.data;
+        }
 
         // Optionally filter the resulting data
         if (link.transform) {
@@ -251,15 +259,12 @@ export class QuerySourceHypermedia implements IQuerySource {
     }
 
     const quadsIterator = wrapAsyncIterator(quads, { autoStart: false });
-    const [
-      quadDestinationQuerySourceIdentify,
-      quadDestinationReasoningQuerySource
-    ] = [quadsIterator.clone(), quadsIterator.clone()];
+    const quadDestinationQuerySourceIdentify = quadsIterator.clone()
     if (aggregatedStore) {
       // Aggregate all discovered quads into a store.
       aggregatedStore.setBaseMetadata(<MetadataBindings>metadata, false);
       aggregatedStore.containedSources.add(link.url);
-      aggregatedStore.import(quadsIterator.clone());
+      aggregatedStore.import(quadsIterator);
     }
 
     // Determine the source
@@ -271,37 +276,6 @@ export class QuerySourceHypermedia implements IQuerySource {
       quads: quadDestinationQuerySourceIdentify,
       url,
     });
-
-    if (isQuerySourceReasoning(source)) {
-      if (this.aggregatedStoreQueryStoreReasoning === undefined) {
-        const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
-        if (aggregatedStore) {
-          const aggregatedSource = new QuerySourceRdfJs(
-            aggregatedStore,
-            context.getSafe(KeysInitQuery.dataFactory),
-            this.bindingsFactory,
-          );
-          const aggregatedStoreReasoningMetadata = JSON.parse(JSON.stringify(metadata));
-          aggregatedStoreReasoningMetadata.reasoningAggregatedStore = {
-            store: aggregatedStore,
-            source: aggregatedSource,
-          };
-          const { source } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
-            context,
-            metadata: aggregatedStoreReasoningMetadata,
-            quads: new AsyncIterator(),
-            url,
-          });
-          if (isQuerySourceReasoningMultipleSources(source)) {
-            this.aggregatedStoreQueryStoreReasoning = source;
-          } else {
-            throw new Error('was not able to generate a reasoning source');
-          }
-        }
-      } else {
-        this.aggregatedStoreQueryStoreReasoning.addSource(quadDestinationReasoningQuerySource, link.url, context);
-      }
-    }
 
     if (dataset) {
       // Mark the dataset as applied

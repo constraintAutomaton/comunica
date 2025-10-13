@@ -63,6 +63,13 @@
     "rdf-streaming-store": "^2.1.1",
     "readable-stream": "^4.5.2",
     "sparqlalgebrajs": "^4.3.8",
-    "uri-template-lite": "^23.4.0"
+    "uri-template-lite": "^23.4.0",
+    "result-interface": "^2.3.3"
+  },
+  "devDependencies": {
+    "@types/streamify-string": "^1.0.4",
+    "rdf-parse": "^4.0.0",
+    "streamify-string": "^1.0.1",
+    "@rdfjs/types": "^2.0.1"
   }
 }

@@ -6,7 +6,8 @@ import { DataFactory } from 'rdf-data-factory';
 const DF = new DataFactory();
 // https://github.com/comunica/comunica/blob/7f2c7dbf5d957b0728af4065c2c6721c43e6aeae/packages/actor-query-operation-construct/lib/BindingsToQuadsIterator.ts#L53
 
-const myEngine = await new QueryEngineFactory().create();
+const configPath = "./config.json"
+const myEngine = await new QueryEngineFactory().create({configPath});
 
 const query = `
 SELECT * WHERE {
