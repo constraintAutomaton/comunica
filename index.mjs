@@ -22,7 +22,7 @@ const loggerParams = {
   streamProviders: [ streamProvider ],
 };
 const logger = new LoggerBunyan(loggerParams);
-const sameAs = DF.namedNode('http://www.w3.org/2002/07/owl#sameAs');
+const sameAs = DF.namedNode('http://www.w3.org/2002/07/owl#equivalentProperty');
 
 const debugRule = [
   DF.quad(
