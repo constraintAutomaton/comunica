@@ -215,7 +215,7 @@ export class QuerySourceHypermedia implements IQuerySource {
 
           const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
           const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, destinationImplicitQuad);
-          const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false });
+          const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false, destroySources:true });
           const [extractMetadata, querySourceData] = [metadataSent.clone(), metadataSent.clone()];
           metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
@@ -257,15 +257,12 @@ export class QuerySourceHypermedia implements IQuerySource {
         this.logWarning(`Metadata extraction for ${url} failed: ${(<Error>error).message}`);
       }
     }
-
-    const quadsIterator = wrapAsyncIterator(quads, { autoStart: false });
-    const quadDestinationQuerySourceIdentify = quadsIterator.clone()
-    if (aggregatedStore) {
-      // Aggregate all discovered quads into a store.
-      aggregatedStore.setBaseMetadata(<MetadataBindings>metadata, false);
-      aggregatedStore.containedSources.add(link.url);
-      aggregatedStore.import(quadsIterator);
-    }
+    const quadIterator = wrapAsyncIterator(quads, {autoStart:false});
+    const [quadAgg, quadIdentify] = [quadIterator.clone(), quadIterator.clone()];
+    // Aggregate all discovered quads into a store.
+    aggregatedStore?.setBaseMetadata(<MetadataBindings> metadata, false);
+    aggregatedStore?.containedSources.add(link.url);
+    aggregatedStore?.import(quadAgg);
 
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
@@ -273,7 +270,7 @@ export class QuerySourceHypermedia implements IQuerySource {
       forceSourceType: link.url === this.firstUrl ? this.forceSourceType : undefined,
       handledDatasets,
       metadata,
-      quads: quadDestinationQuerySourceIdentify,
+      quads: quadIdentify,
       url,
     });
 
@@ -284,7 +281,7 @@ export class QuerySourceHypermedia implements IQuerySource {
       handledDatasets[dataset] = true;
     }
 
-    return { link, source, metadata: <MetadataBindings>metadata, handledDatasets };
+    return { link, source, metadata: <MetadataBindings> metadata, handledDatasets };
   }
 
   /**
