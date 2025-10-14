@@ -31,6 +31,7 @@ import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
 import { OnlineSchemaAligmentRuleManager } from './OnlineSchemaAligmentRuleManager';
+import { Operator } from "@comunica/actor-context-preprocess-query-source-reasoning";
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -65,7 +66,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     logWarning: (warningMessage: string) => void,
     dataFactory: ComunicaDataFactory,
     bindingsFactory: BindingsFactory,
-    onlineSchemaAligment?:MediatorDereferenceRdf,
+    onlineSchemaAligment?:{mediator:MediatorDereferenceRdf, disallowedOnlineRules:Set<Operator>},
 
   ) {
     this.referenceValue = firstUrl;
@@ -81,7 +82,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     this.bindingsFactory = bindingsFactory;
     this.sourcesState = new LRUCache<string, Promise<ISourceState>>({ max: this.cacheSize });
     if(onlineSchemaAligment){
-      this.onlineSchemaAligmentManager = new OnlineSchemaAligmentRuleManager(onlineSchemaAligment);
+      this.onlineSchemaAligmentManager = new OnlineSchemaAligmentRuleManager(onlineSchemaAligment.mediator, onlineSchemaAligment.disallowedOnlineRules);
     }
   }
 

@@ -4,11 +4,14 @@ import { DataFactory } from "rdf-data-factory";
 import type { MediatorDereferenceRdf } from "@comunica/bus-dereference-rdf";
 import { KeyReasoning } from "@comunica/context-entries";
 import { error, isError, result, safePromise, SafePromise } from "result-interface";
+import { Operator } from "@comunica/actor-context-preprocess-query-source-reasoning";
 
 export const DF = new DataFactory<RDF.BaseQuad>();
 
 export class OnlineSchemaAligmentRuleManager {
   public readonly mediatorDereferenceRdf: MediatorDereferenceRdf;
+
+  public readonly disallowedOnlineRules:Set<Operator>;
   public static readonly ERROR_MESSAGE_NO_RULE_SET =
     "there is no rule set in this resource";
 
@@ -40,8 +43,9 @@ export class OnlineSchemaAligmentRuleManager {
 
   private readonly ruleSetHandled: Set<string> = new Set();
 
-  public constructor(mediatorDereferenceRdf: MediatorDereferenceRdf){
+  public constructor(mediatorDereferenceRdf: MediatorDereferenceRdf, disallowedOnlineRules: Set<Operator>){
     this.mediatorDereferenceRdf = mediatorDereferenceRdf;
+    this.disallowedOnlineRules = disallowedOnlineRules;
   }
 
   public test(context: IActionContext): boolean {
@@ -259,7 +263,9 @@ export class OnlineSchemaAligmentRuleManager {
         rule.inference,
         rule.conclusion
       );
-      rules.push(parsedRule);
+      if(!this.disallowedOnlineRules.has(<Operator>rule.inference.value)){
+        rules.push(parsedRule);
+      }
     }
     engineRules.set(ruleSet.subweb, rules);
   }

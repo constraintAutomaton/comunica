@@ -1,4 +1,4 @@
-import type { ReasoningQuerySourceMap, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
+import type { ReasoningQuerySourceMap, ScopedRules, Operator } from '@comunica/actor-context-preprocess-query-source-reasoning';
 import { ActionContextKey, CONTEXT_KEY_LOGGER } from '@comunica/core';
 import type {
   AsyncExtensionFunctionCreator,
@@ -375,6 +375,7 @@ export const KeyReasoning = {
    * The rules to apply with their data source domain in the form of a URI template or of an RDF source.
    */
   rules: new ActionContextKey<ScopedRules>('@comunica/actor-context-preprocess-query-source-reasoning:rules'),
+  disallowedOnlineRules: new ActionContextKey<Operator[]>('@comunica/actor-context-preprocess-query-source-reasoning:disallowedOnlineRules'),
   /**
    * The query source reasoning by the scope of the rule set
    */

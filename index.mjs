@@ -42,6 +42,7 @@ const bindingsStream = await myEngine.queryBindings(query, {
   [KeyReasoning.rules.name]: new Map([
     [ '*', debugRule ],
   ]),
+  [KeyReasoning.disallowedOnlineRules.name]: ['http://www.w3.org/2002/07/owl#equivalentProperty'],
   sources: [ 'https://solidbench.linkeddatafragments.org/pods/00000000000000000933/profile/card#me' ],
 
 });
