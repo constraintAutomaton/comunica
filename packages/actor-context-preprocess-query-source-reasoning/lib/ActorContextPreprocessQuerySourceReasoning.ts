@@ -4,7 +4,7 @@ import type { IActionContextPreprocess, IActorContextPreprocessOutput } from '@c
 import { ActorContextPreprocess } from '@comunica/bus-context-preprocess';
 import type { MediatorMergeBindingsContext } from '@comunica/bus-merge-bindings-context';
 import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-accumulate';
-import { KeysInitQuery, KeysQueryOperation, KeysQuerySourceIdentify, KeyReasoning } from '@comunica/context-entries';
+import { KeysInitQuery, KeysQueryOperation, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type { IActorArgs, IActorTest, TestResult } from '@comunica/core';
 import { passTestVoid } from '@comunica/core';
 import type { IQuerySourceWrapper, QuerySourceReference } from '@comunica/types';
@@ -12,7 +12,7 @@ import { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 import { StreamingStore } from 'rdf-streaming-store';
 import { QuerySourceReasoning } from './QuerySourceReasoning';
-import { parseRules, type IRuleGraph, type ScopedRules } from './Rules';
+import { parseRules, type IRuleGraph, type ScopedRules, KeyReasoning } from './Rules';
 
 const UriTemplate = require('uri-template-lite');
 

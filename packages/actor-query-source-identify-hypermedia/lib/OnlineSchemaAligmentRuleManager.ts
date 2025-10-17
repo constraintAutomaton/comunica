@@ -2,9 +2,8 @@ import { IActionContext } from "@comunica/types";
 import type * as RDF from "@rdfjs/types";
 import { DataFactory } from "rdf-data-factory";
 import type { MediatorDereferenceRdf } from "@comunica/bus-dereference-rdf";
-import { KeyReasoning } from "@comunica/context-entries";
 import { error, isError, result, safePromise, SafePromise } from "result-interface";
-import { Operator } from "@comunica/actor-context-preprocess-query-source-reasoning";
+import { Operator, KeyReasoning } from "./Rules";
 
 export const DF = new DataFactory<RDF.BaseQuad>();
 

@@ -8,9 +8,8 @@ import type { BindingsFactory } from '@comunica/utils-bindings-factory';
 import type * as RDF from '@rdfjs/types';
 import type { AsyncIterator } from 'asynciterator';
 import { error, type Result } from 'result-interface';
-import { ActorContextPreprocessQuerySourceReasoning } from './ActorContextPreprocessQuerySourceReasoning';
 import { AbstractQuerySourceReasoning } from './QuerySourceReasoning';
-import { IRuleGraph, ScopedRules, KeyReasoning } from './Rules';
+import { selectCorrespondingRuleSet, type IRuleGraph, type ScopedRules, KeyReasoning } from './Rules';
 import type { IClosingCondition } from './util';
 
 export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReasoning {
@@ -56,7 +55,7 @@ export class QuerySourceReasoningMultipleSources extends AbstractQuerySourceReas
     if (rules === undefined) {
       return error(new Error('the "KeyReasoning" is not defined in the context'));
     }
-    const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
+    const effectiveRule = selectCorrespondingRuleSet(rules, url);
     const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, quadStream);
 
     const eventImport = this.implicitQuadStore.import(implicitQuads);

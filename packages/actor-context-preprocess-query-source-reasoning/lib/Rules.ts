@@ -1,8 +1,24 @@
+import { ActionContextKey } from '@comunica/core';
 import { QuerySourceReference } from '@comunica/types';
 import type * as RDF from '@rdfjs/types';
 import { DataFactory } from 'rdf-data-factory';
 
 const DF = new DataFactory();
+
+
+export const KeyReasoning = {
+  /**
+   * The rules to apply with their data source domain in the form of a URI template or of an RDF source.
+   */
+  rules: new ActionContextKey<ScopedRules>('@comunica/actor-context-preprocess-query-source-reasoning:rules'),
+  disallowedOnlineRules: new ActionContextKey<Operator[]>('@comunica/actor-context-preprocess-query-source-reasoning:disallowedOnlineRules'),
+  /**
+   * The query source reasoning by the scope of the rule set
+   */
+  querySources: new ActionContextKey<ReasoningQuerySourceMap>('@comunica/actor-context-preprocess-query-source-reasoning:querySources'),
+
+};
+
 
 export abstract class Rule {
   public readonly premise: Premise;

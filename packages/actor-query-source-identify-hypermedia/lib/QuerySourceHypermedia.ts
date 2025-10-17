@@ -1,5 +1,3 @@
-import { ActorContextPreprocessQuerySourceReasoning, isQuerySourceReasoning, isQuerySourceReasoningMultipleSources, ScopedRules } from '@comunica/actor-context-preprocess-query-source-reasoning';
-import { QuerySourceReasoningMultipleSources } from '@comunica/actor-context-preprocess-query-source-reasoning/lib/QuerySourceReasoningMultipleSources';
 import { QuerySourceRdfJs } from '@comunica/actor-query-source-identify-rdfjs';
 import type { IActorDereferenceRdfOutput, MediatorDereferenceRdf } from '@comunica/bus-dereference-rdf';
 import type { MediatorQuerySourceIdentifyHypermedia } from '@comunica/bus-query-source-identify-hypermedia';
@@ -8,7 +6,7 @@ import type { MediatorRdfMetadataAccumulate } from '@comunica/bus-rdf-metadata-a
 import type { MediatorRdfMetadataExtract } from '@comunica/bus-rdf-metadata-extract';
 import type { MediatorRdfResolveHypermediaLinks } from '@comunica/bus-rdf-resolve-hypermedia-links';
 import type { MediatorRdfResolveHypermediaLinksQueue } from '@comunica/bus-rdf-resolve-hypermedia-links-queue';
-import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify, KeyReasoning } from '@comunica/context-entries';
+import { KeysQueryOperation, KeysInitQuery, KeysQuerySourceIdentify } from '@comunica/context-entries';
 import type {
   BindingsStream,
   ComunicaDataFactory,
@@ -31,7 +29,8 @@ import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
 import { OnlineSchemaAligmentRuleManager } from './OnlineSchemaAligmentRuleManager';
-import { Operator } from "@comunica/actor-context-preprocess-query-source-reasoning";
+import { ScopedRules, Operator, selectCorrespondingRuleSet, KeyReasoning } from './Rules';
+import { QuerySourceReasoningMultipleSources } from './QuerySourceReasoningMultipleSources';
 
 export class QuerySourceHypermedia implements IQuerySource {
   public readonly referenceValue: string;
@@ -51,7 +50,6 @@ export class QuerySourceHypermedia implements IQuerySource {
 
   private readonly cacheSize: number;
   private readonly maxIterators: number;
-  private aggregatedStoreQueryStoreReasoning: QuerySourceReasoningMultipleSources | undefined;
 
   private readonly emitPartialCardinalities: boolean;
 
@@ -99,9 +97,6 @@ export class QuerySourceHypermedia implements IQuerySource {
     // Optimized match with aggregated store if enabled and started.
     const aggregatedStore: IAggregatedStore | undefined = this.getAggregateStore(context);
     if (aggregatedStore && operation.type === 'pattern' && aggregatedStore.started) {
-      if (this.aggregatedStoreQueryStoreReasoning) {
-        return this.aggregatedStoreQueryStoreReasoning.queryBindings(operation, context);
-      }
       return new QuerySourceRdfJs(
         aggregatedStore,
         context.getSafe(KeysInitQuery.dataFactory),
@@ -214,7 +209,7 @@ export class QuerySourceHypermedia implements IQuerySource {
           const [destinationImplicitQuad, destinationExtract, destinationOnlineSchemaManager] = [metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone()];
           await this.onlineSchemaAligmentManager.run(destinationOnlineSchemaManager, context);
 
-          const effectiveRule = ActorContextPreprocessQuerySourceReasoning.selectCorrespondingRuleSet(rules, url);
+          const effectiveRule = selectCorrespondingRuleSet(rules, url);
           const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, destinationImplicitQuad);
           const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false, destroySources:true });
           const [extractMetadata, querySourceData] = [metadataSent.clone(), metadataSent.clone()];
