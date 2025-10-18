@@ -116,7 +116,13 @@ implements IBusArgs {
    *         and a promise to its {@link Actor#test} result.
    */
   public publish(action: I): IActorReply<A, I, T, O, TS>[] {
-    return this.actors.map((actor: A): IActorReply<A, I, T, O, TS> => ({ actor, reply: actor.test(action) }));
+    return this.actors.map((actor: A): IActorReply<A, I, T, O, TS> => {
+      let newAction:I = action;
+      if((<any>action).metadata && (<any> action)?.metadata?.clone){
+        newAction = {...newAction, metadata: (<any>action).metadata.clone()} ; 
+      }
+      return { actor, reply: actor.test(newAction) };
+    });
   }
 
   /**
