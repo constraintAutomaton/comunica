@@ -118,10 +118,21 @@ implements IBusArgs {
   public publish(action: I): IActorReply<A, I, T, O, TS>[] {
     return this.actors.map((actor: A): IActorReply<A, I, T, O, TS> => {
       let newAction:I = action;
+        /**
       if((<any>action).metadata && (<any> action)?.metadata?.clone){
         newAction = {...newAction, metadata: (<any>action).metadata.clone()} ; 
+       
+        const debugMetadata = (<any>newAction).metadata.clone()
+      awaitnew Promise((resolve)=>{
+            debugMetadata.on("data", (quad:any)=>console.log(quad.predicate.value))
+            debugMetadata.on("error", (err:any)=>console.log(err))
+            debugMetadata.on("end", ()=>resolve(undefined));
+          })
+            
       }
-      return { actor, reply: actor.test(newAction) };
+      */
+      
+      return { actor, reply: actor.test(action) };
     });
   }
 

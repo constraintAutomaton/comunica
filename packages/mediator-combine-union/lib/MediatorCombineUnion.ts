@@ -51,10 +51,18 @@ TS = undefined,
       sideDatas[i] = awaited.getSideData();
       return value;
     }));
-
     // Run action on all actors.
+    const newActions = testResults.map(()=>{
+      if((<any>action).metadata && (<any>action).metadata.clone){
+        return {...action, metadata: (<any>action).metadata.clone()};
+      }
+      return action;
+    });
+
     const results: O[] = await Promise.all(testResults
-      .map((result, i) => result.actor.runObservable(action, sideDatas[i]!)));
+      .map((result, i) =>{
+        return result.actor.runObservable(newActions[i], sideDatas[i]!);
+      }));
 
     // Return the combined results.
     return this.combiner(results);

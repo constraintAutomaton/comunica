@@ -206,22 +206,39 @@ export class QuerySourceHypermedia implements IQuerySource {
         const rules: ScopedRules | undefined = context.get(KeyReasoning.rules);
         if (rules !== undefined && this.onlineSchemaAligmentManager && this.onlineSchemaAligmentManager?.test(context)) {
           const metadataOriginal = wrapAsyncIterator(rdfMetadataOutput.metadata, { autoStart: false });
-          const [destinationImplicitQuad, destinationExtract, destinationOnlineSchemaManager] = [metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone()];
+          
+          const [destinationImplicitQuad, destinationExtract, destinationReachability, destinationOnlineSchemaManager, debugQuad] = [metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone(), metadataOriginal.clone()];
+          
+
           await this.onlineSchemaAligmentManager.run(destinationOnlineSchemaManager, context);
 
           const effectiveRule = selectCorrespondingRuleSet(rules, url);
           const implicitQuads = QuerySourceReasoningMultipleSources.generateImplicitQuads(effectiveRule, destinationImplicitQuad);
-          const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false, destroySources:true });
-          const [extractMetadata, querySourceData] = [metadataSent.clone(), metadataSent.clone()];
+
+          /**
+          const rdfMetadataImplicitOutput: IActorRdfMetadataOutput = await this.mediators.mediatorMetadata.mediate(
+          { context, url, quads: implicitQuads, triples: false },
+        );
+        */
+
+        //const implicitQuadsWithMetadata = wrapAsyncIterator(rdfMetadataImplicitOutput.data, {autoStart:false});
+          const metadataSent = new UnionIterator([destinationExtract, implicitQuads],{ autoStart: false });
+
+         
+          
+          const [extractMetadata, querySourceData, debugQuadWithImplicit] = [metadataSent, metadataSent.clone(), metadataSent.clone()];
+          
+          //debugQuadWithImplicit.forEach((quad)=>console.log(quad.predicate.value));
+
           metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
           url,
           // The problem appears to be conflicting metadata keys here
-          metadata: extractMetadata,
+          metadata: destinationReachability,
           headers: dereferenceRdfOutput.headers,
           requestTime: dereferenceRdfOutput.requestTime,
         })).metadata;
-        quads = querySourceData;
+        quads =  querySourceData;
         }else{
           metadata = (await this.mediators.mediatorMetadataExtract.mediate({
           context,
@@ -254,12 +271,11 @@ export class QuerySourceHypermedia implements IQuerySource {
       }
     }
     const quadIterator = wrapAsyncIterator(quads, {autoStart:false});
-    const [quadAgg, quadIdentify] = [quadIterator.clone(), quadIterator.clone()];
+    const [quadAgg, quadIdentify, quadDebug] = [quadIterator.clone(), quadIterator.clone(), quadIterator.clone()];
     // Aggregate all discovered quads into a store.
     aggregatedStore?.setBaseMetadata(<MetadataBindings> metadata, false);
     aggregatedStore?.containedSources.add(link.url);
     aggregatedStore?.import(quadAgg);
-
     // Determine the source
     const { source, dataset } = await this.mediators.mediatorQuerySourceIdentifyHypermedia.mediate({
       context,
