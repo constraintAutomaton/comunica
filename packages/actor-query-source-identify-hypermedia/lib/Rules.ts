@@ -16,7 +16,7 @@ export const KeyReasoning = {
    * The query source reasoning by the scope of the rule set
    */
   querySources: new ActionContextKey<ReasoningQuerySourceMap>('@comunica/actor-context-preprocess-query-source-reasoning:querySources'),
-
+  activateReasoning: new ActionContextKey<boolean>('@comunica/actor-context-preprocess-query-source-reasoning:activate'), 
 };
 
 

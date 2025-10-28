@@ -51,7 +51,8 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
 
   public async run(action: IActionQuerySourceIdentify): Promise<IActorQuerySourceIdentifyOutput> {
     const dataFactory: ComunicaDataFactory = action.context.getSafe(KeysInitQuery.dataFactory);
-    const disallowedOnlineRules: Set<Operator> = new Set(action.context.get(KeyReasoning.disallowedOnlineRules)??[])
+    const disallowedOnlineRules: Set<Operator> = new Set(action.context.get(KeyReasoning.disallowedOnlineRules)??[]);
+    const activateReasoning = action.context.get(KeyReasoning.activateReasoning)??false;
     return {
       querySource: {
         source: new QuerySourceHypermedia(
@@ -74,7 +75,7 @@ export class ActorQuerySourceIdentifyHypermedia extends ActorQuerySourceIdentify
           warningMessage => this.logWarn(action.context, warningMessage),
           dataFactory,
           await BindingsFactory.create(this.mediatorMergeBindingsContext, action.context, dataFactory),
-          this.onlineSchemaAligment?{mediator:this.mediatorDereferenceRdf, disallowedOnlineRules}:undefined
+          (this.onlineSchemaAligment && activateReasoning)?{mediator:this.mediatorDereferenceRdf, disallowedOnlineRules}:undefined
         ),
         context: action.querySourceUnidentified.context ?? new ActionContext(),
       },

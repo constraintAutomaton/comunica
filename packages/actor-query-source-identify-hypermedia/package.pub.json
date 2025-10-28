@@ -1,6 +1,6 @@
 {
   "name": "actor-query-source-identify-hypermedia-schema-alignment",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A hypermedia query-source-identify actor",
   "lsd:module": true,
   "license": "MIT",
