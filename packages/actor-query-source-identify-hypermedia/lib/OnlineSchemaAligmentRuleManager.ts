@@ -17,7 +17,7 @@ export class OnlineSchemaAligmentRuleManager {
   public static readonly RDF_TYPE_NODE = DF.namedNode(
     "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
   );
-  public static readonly RULE_SET_PREFIX = "https://exemple.com#";
+  public static readonly RULE_SET_PREFIX = "https://semanticmapping.org/vocab#";
   public static readonly RULE_SET_CLASS = DF.namedNode(
     `${this.RULE_SET_PREFIX}RuleSet`
   );
@@ -204,7 +204,7 @@ export class OnlineSchemaAligmentRuleManager {
       quad.subject.value === ruleSetIri &&
       OnlineSchemaAligmentRuleManager.RDF_TYPE_NODE.equals(quad.predicate) &&
       OnlineSchemaAligmentRuleManager.RULE_SET_CLASS.equals(quad.object)
-      
+
     ) {
       ruleSetInformation.isRuleSet = true;
     } else if (
