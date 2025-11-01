@@ -1,12 +1,12 @@
 {
   "name": "actor-query-source-identify-hypermedia-schema-alignment",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "A hypermedia query-source-identify actor",
   "lsd:module": true,
   "license": "MIT",
   "funding": {
     "type": "opencollective",
-    "url": "https://opencollective.com/comunica-association"
+    "url": "https://pencollective.com/comunica-association"
   },
   "homepage": "https://comunica.dev/",
   "repository": {
