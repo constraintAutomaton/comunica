@@ -9,6 +9,7 @@ export const DF = new DataFactory<RDF.BaseQuad>();
 
 export class OnlineSchemaAligmentRuleManager {
   public readonly mediatorDereferenceRdf: MediatorDereferenceRdf;
+  public readonly trackAlignment: boolean;
 
   public readonly disallowedOnlineRules:Set<Operator>;
   public static readonly ERROR_MESSAGE_NO_RULE_SET =
@@ -42,9 +43,10 @@ export class OnlineSchemaAligmentRuleManager {
 
   private readonly ruleSetHandled: Set<string> = new Set();
 
-  public constructor(mediatorDereferenceRdf: MediatorDereferenceRdf, disallowedOnlineRules: Set<Operator>){
+  public constructor(mediatorDereferenceRdf: MediatorDereferenceRdf, disallowedOnlineRules: Set<Operator>, trackAlignment:boolean = false){
     this.mediatorDereferenceRdf = mediatorDereferenceRdf;
     this.disallowedOnlineRules = disallowedOnlineRules;
+    this.trackAlignment = trackAlignment;
   }
 
   public test(context: IActionContext): boolean {
@@ -80,8 +82,15 @@ export class OnlineSchemaAligmentRuleManager {
     this.ruleSetHandled.add(ruleSetLocation);
     const { value: ruleSet } = respParsedRules;
     this.injectRule(ruleSet, context);
-
+    if(this.trackAlignment){
+      this.trackRuleSet(ruleSet, context);
+    }
     return;
+  }
+
+  public trackRuleSet(ruleSet: IRuleSet, context: IActionContext): void {
+    const tracker = context.getSafe(KeyReasoning.runTimeInfo);
+    tracker.schemaAlignment.push(ruleSet);
   }
 
   /**

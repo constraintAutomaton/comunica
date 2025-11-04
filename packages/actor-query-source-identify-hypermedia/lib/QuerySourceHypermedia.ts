@@ -29,7 +29,7 @@ import type { ISourceState } from './LinkedRdfSourcesAsyncRdfIterator';
 import { MediatedLinkedRdfSourcesAsyncRdfIterator } from './MediatedLinkedRdfSourcesAsyncRdfIterator';
 import { StreamingStoreMetadata } from './StreamingStoreMetadata';
 import { OnlineSchemaAligmentRuleManager } from './OnlineSchemaAligmentRuleManager';
-import { ScopedRules, Operator, selectCorrespondingRuleSet, KeyReasoning } from './Rules';
+import { ScopedRules, Operator, selectCorrespondingRuleSet, KeyReasoning, ISchemaAlignmentTracker } from './Rules';
 import { QuerySourceReasoningMultipleSources } from './QuerySourceReasoningMultipleSources';
 
 export class QuerySourceHypermedia implements IQuerySource {
@@ -42,6 +42,7 @@ export class QuerySourceHypermedia implements IQuerySource {
   public readonly dataFactory: ComunicaDataFactory;
   public readonly bindingsFactory: BindingsFactory;
   public readonly onlineSchemaAligmentManager?: OnlineSchemaAligmentRuleManager;
+  public readonly schemaAlignmentTracker?: ISchemaAlignmentTracker; 
 
   /**
    * A cache for source URLs to source states.
@@ -65,7 +66,7 @@ export class QuerySourceHypermedia implements IQuerySource {
     dataFactory: ComunicaDataFactory,
     bindingsFactory: BindingsFactory,
     onlineSchemaAligment?:{mediator:MediatorDereferenceRdf, disallowedOnlineRules:Set<Operator>},
-
+    schemaAlignmentTracker?: ISchemaAlignmentTracker,
   ) {
     this.referenceValue = firstUrl;
     this.cacheSize = cacheSize;
@@ -79,8 +80,13 @@ export class QuerySourceHypermedia implements IQuerySource {
     this.dataFactory = dataFactory;
     this.bindingsFactory = bindingsFactory;
     this.sourcesState = new LRUCache<string, Promise<ISourceState>>({ max: this.cacheSize });
+    this.schemaAlignmentTracker = schemaAlignmentTracker;
     if(onlineSchemaAligment){
-      this.onlineSchemaAligmentManager = new OnlineSchemaAligmentRuleManager(onlineSchemaAligment.mediator, onlineSchemaAligment.disallowedOnlineRules);
+      this.onlineSchemaAligmentManager = new OnlineSchemaAligmentRuleManager(
+        onlineSchemaAligment.mediator,
+         onlineSchemaAligment.disallowedOnlineRules,
+        schemaAlignmentTracker !== undefined?true:false
+        );
     }
   }
 
@@ -178,6 +184,10 @@ export class QuerySourceHypermedia implements IQuerySource {
 
     // Get the RDF representation of the given document
     let url = link.url;
+    if(this.schemaAlignmentTracker){
+      this.schemaAlignmentTracker.links.push(url);
+    }
+    
     let quads: RDF.Stream;
     let metadata: Record<string, any>;
     if (this.forceSourceType === 'sparql' && context.get(KeysQueryOperation.querySources)?.length === 1) {

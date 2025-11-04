@@ -2,9 +2,15 @@ import { ActionContextKey } from "@comunica/core";
 import { QuerySourceReference } from "@comunica/types";
 import type * as RDF from "@rdfjs/types";
 import { DataFactory } from "rdf-data-factory";
+import { IRuleSet } from "./OnlineSchemaAligmentRuleManager";
 
 const UriTemplate = require('uri-template-lite');
 const DF = new DataFactory();
+
+export interface ISchemaAlignmentTracker{
+  links: string[],
+  schemaAlignment: IRuleSet[]
+}
 
 export const KeyReasoning = {
   /**
@@ -17,6 +23,7 @@ export const KeyReasoning = {
    */
   querySources: new ActionContextKey<ReasoningQuerySourceMap>('@comunica/actor-context-preprocess-query-source-reasoning:querySources'),
   activateReasoning: new ActionContextKey<boolean>('@comunica/actor-context-preprocess-query-source-reasoning:activate'), 
+  runTimeInfo: new ActionContextKey<ISchemaAlignmentTracker>('@comunica/actor-context-preprocess-query-source-reasoning:runtimeInfo')
 };
 
 
