@@ -18,7 +18,7 @@ export class OnlineSchemaAligmentRuleManager {
   public static readonly RDF_TYPE_NODE = DF.namedNode(
     "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
   );
-  public static readonly RULE_SET_PREFIX = "https://semanticmapping.org/vocab#";
+  public static readonly RULE_SET_PREFIX = "https://onlineschemaalignmentltqp.github.io/vocabulary/vocab.ttl#";
   public static readonly RULE_SET_CLASS = DF.namedNode(
     `${this.RULE_SET_PREFIX}RuleSet`
   );
