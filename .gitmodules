@@ -1,0 +1,3 @@
+[submodule "shex-to-summary"]
+	path = shex-to-summary
+	url = https://github.com/shape-federated-queries/shex-to-summary.git
