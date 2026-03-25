@@ -1,0 +1,45 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "adapter": "JavaScript",
+    "label": "QuerySourceSchema test (coverage)",
+    "request": "launch",
+    "type": "pwa-node",
+    "args": [
+      "node_modules/.bin/jest",
+      "packages/actor-query-source-identify-schema/test/QuerySourceSchema-test.ts",
+      "--runInBand",
+      "--coverage",
+      "--collectCoverageFrom=packages/actor-query-source-identify-schema/lib/QuerySourceSchema.ts"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "runtimeExecutable": "node",
+    "env": {},
+    "console": "integratedTerminal"
+  },
+  {
+    "adapter": "JavaScript",
+    "label": "jest test statements",
+    "request": "launch",
+    "type": "pwa-node",
+    "args": [
+      "exec",
+      "--",
+      "jest",
+      "--runInBand",
+      "--testNamePattern",
+      "\"$ZED_CUSTOM_TYPESCRIPT_JEST_TEST_NAME\"",
+      "$ZED_FILE"
+    ],
+    "cwd": "$ZED_CUSTOM_TYPESCRIPT_JEST_PACKAGE_PATH",
+    "runtimeExecutable": "$ZED_CUSTOM_TYPESCRIPT_RUNNER",
+    "env": {},
+    "runtimeArgs": [
+      "--inspect-brk"
+    ],
+    "console": "integratedTerminal"
+  }
+]

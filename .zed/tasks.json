@@ -1,0 +1,10 @@
+[
+  {
+    "label": "QuerySourceSchema test (coverage)",
+    "command": "yarn workspace @comunica/actor-query-source-identify-schema test"
+  },
+  {
+    "label": "lint actor-query-source-identify-schema",
+    "command": "yarn workspace @comunica/actor-query-source-identify-schema lint"
+  }
+]
